@@ -6,7 +6,12 @@ const { URL } = require('url');
 
 loadEnv(path.join(__dirname, '.env'));
 const PORT = Number(process.env.PORT || 3000);
-const SECRET = process.env.SESSION_SECRET || 'development-only-change-this-before-production';
+const SECRET = process.env.SESSION_SECRET;
+
+if (process.env.NODE_ENV === "production" && (!SECRET || SECRET.length < 32)) {
+  throw new Error("SESSION_SECRET must be configured with 32+ characters in production.");
+}
+
 const sessions = new Map();
 const loginAttempts = new Map();
 const quoteAttempts = new Map();
@@ -95,6 +100,7 @@ async function sendWebhook(order) { const url=process.env.DISCORD_WEBHOOK_URL; i
 }
 function staticFile(res, pathname) { let file=pathname==='/'?'/index.html':pathname; const root=path.resolve(__dirname,'public'); const candidate=path.resolve(root,'.'+file); const allowed=(candidate===root || candidate.startsWith(root+path.sep)) ? candidate : null; if (!allowed || !fs.existsSync(allowed) || fs.statSync(allowed).isDirectory()) return false; const ext=path.extname(allowed); const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml'}; send(res,200,fs.readFileSync(allowed),types[ext]||'application/octet-stream'); return true; }
 const server=http.createServer(async(req,res)=>{ const url=new URL(req.url,`http://${req.headers.host}`); try {
+  if (req.method === "GET" && url.pathname === "/health") { return send(res, 200, { status: "ok" }); }
   if (req.method==='GET' && url.pathname==='/api/session') { const s=user(req); return send(res,200,{inr:Boolean(s?.inr),roblox:s?.roblox||null,configured:{roblox:robloxConfigured()}}); }
   if (req.method==='POST' && url.pathname==='/api/inr/login') { if(!loginAllowed(req)) return send(res,429,{error:'Too many failed attempts. Please wait 15 minutes.'}); const b=await readJson(req); if (!process.env.INR_USERNAME || !process.env.INR_PASSWORD) return send(res,503,{error:'INR access is not configured yet.'}); if (!safeEqual(b.username,process.env.INR_USERNAME)||!safeEqual(b.password,process.env.INR_PASSWORD)){recordLoginFailure(req);return send(res,401,{error:'Those INR access details are not recognised.'});} loginAttempts.delete(req.socket.remoteAddress||'unknown'); makeSession(res,{inr:true}); return send(res,200,{ok:true}); }
   if (req.method==='POST' && url.pathname==='/api/logout') { res.setHeader('Set-Cookie','sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return send(res,200,{ok:true}); }
@@ -119,4 +125,6 @@ const server=http.createServer(async(req,res)=>{ const url=new URL(req.url,`http
   if (req.method==='GET' && staticFile(res,url.pathname)) return;
   send(res,404,{error:'Not found'});
  } catch(e) { console.error(e); send(res,500,{error:e.message==='Invalid request'?e.message:'Something went wrong. Please try again.'}); } });
-server.listen(PORT,()=>console.log(`k3rxsene's Services running at http://localhost:${PORT}`));
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`k3rxsene's Services running on 0.0.0.0:${PORT}`);
+});
