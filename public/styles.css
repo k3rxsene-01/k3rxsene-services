@@ -2,7 +2,8 @@
 
 :root{
   --blue:#4f8dff;--cyan:#6ee7ff;--amber:#ffb454;
-  --garden:#8fd66f;--garden-cyan:#5be8b0;
+  --garden:#4fb862;--garden2:#ffcc4d;
+  --bf:#ff6a3d;--bf2:#ffcf5c;
   --accent:var(--blue);--accent2:var(--cyan);
   --bg:#04060c;--bg2:#0a0f1f;
   --panel:rgba(15,21,40,.62);--panel-solid:#0d1428;
@@ -14,7 +15,8 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;min-width:320px;overflow-x:hidden;color:var(--text);background:var(--bg);font:15px Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-body.garden{--accent:var(--garden);--accent2:var(--garden-cyan)}
+body.garden{--accent:var(--garden);--accent2:var(--garden2)}
+body.bloxfruits{--accent:var(--bf);--accent2:var(--bf2)}
 body:before{content:"";position:fixed;inset:0;z-index:-3;background:
   radial-gradient(circle at 80% 4%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 40%),
   radial-gradient(circle at 14% 62%,color-mix(in srgb,var(--accent2) 12%,transparent),transparent 45%),
