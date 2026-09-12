@@ -169,16 +169,60 @@ ${footer()}`;
   nav();initHomeFX();
 }
 
+/* ---------- category grouping (presentational only — grouping/order, never touches price/data) ---------- */
+const CATS = {
+  blox: [
+    {label:'Progression', match:id=>['leveling','race-v4','raids','bounty','mirage','beli','recovery'].includes(id)},
+    {label:'Races', match:id=>['ghoul','cyborg'].includes(id)},
+    {label:'Swords & Weapons', match:id=>['ttk','ttk-mastery','soul-guitar','soul-guitar-mastery','sword'].includes(id)},
+    {label:'Physical Fruits', table:true, match:id=>id.startsWith('fruit-')},
+  ],
+  garden: [
+    {label:'Seeds', match:id=>['ember-lily','sugar-apple'].includes(id)},
+    {label:'Sprinklers', match:id=>['sprinkler','godly-sprinkler'].includes(id)},
+    {label:'Pets', match:id=>['raccoon','dragonfly'].includes(id)},
+    {label:'Currency & Other', match:()=>true},
+  ],
+};
+function groupCatalog(){
+  const cats=CATS[state.game]||[{label:'Services',match:()=>true}];
+  const used=new Set();
+  return cats.map(c=>{const items=state.catalog.filter(i=>!used.has(i.id)&&c.match(i.id));items.forEach(i=>used.add(i.id));return {...c,items}}).filter(g=>g.items.length);
+}
+
+/* ---------- quantity stepper (shared by catalogue cards, fruit rows, and the cart) ---------- */
+function stepper(id, size=''){
+  const item=state.items.find(x=>x.id===id);
+  const qty=item?item.quantity:0;
+  if(!qty) return `<button class="btn ghost${size?' '+size:''}" data-add="${id}">Add</button>`;
+  return `<div class="qty-stepper${size?' '+size:''}"><button class="qty-btn" data-dec="${id}" aria-label="Decrease quantity">−</button><span class="qty-num">${qty}</span><button class="qty-btn" data-inc="${id}" aria-label="Increase quantity">+</button></div>`;
+}
+
 /* ---------- catalogue pages (public + inr) ---------- */
 function catalogMarkup(){
   const isInr=state.market==='inr';const heading=isInr?'Your catalogue':`${gameNames[state.game]} services`;const theme=state.game==='garden'?'garden':'';
   document.body.className=theme;
-  document.body.innerHTML=`${header(isInr?'':'games')}<main id="main"><section class="catalog-hero wrap"><p class="kicker"><span class="dot"></span>${isInr?'Private access':gameNames[state.game]}</p><h1>${heading}</h1><p>${isInr?'Your approved catalogue. Add items to build an order; prices are verified by the server at submission.':'Browse the catalogue and request a rate. Add services to your request below.'}</p></section><section class="wrap catalog-layout"><div><div class="notice" style="margin-bottom:16px"><strong>${state.game==='garden'?'Availability matters.':'Service scope matters.'}</strong> ${state.game==='garden'?'Grow a Garden market items are availability-based; an item marked “Price on request” cannot be checked out until a rate is agreed.':'Some services have account-specific scope; final delivery details are confirmed after checkout.'}</div><div class="service-grid" id="serviceGrid"></div></div><aside class="cart panel"><h2>${isInr?'Your order':'Your rate request'}</h2><ul class="cart-items" id="cartItems"></ul>${isInr?`<div class="cart-summary"><div><span>Subtotal</span><b id="subtotal">₹0</b></div><div><span id="expressLabel">Express Service: Not applied</span><b id="expressPrice">—</b></div><div><strong>Total</strong><strong id="total">₹0</strong></div></div><div class="express"><label><input type="checkbox" id="express"> <span>Add Express Service <small>(+₹${state.expressSurcharge})</small></span></label><span>One priority surcharge per order. It is never multiplied by service.</span></div><button class="btn blue" style="width:100%" id="checkout">Continue to Roblox login</button>`:`<div class="field"><label for="quoteEmail">Contact email</label><input id="quoteEmail" type="email" required placeholder="you@example.com"></div><div class="field"><label for="quoteNotes">Notes (optional)</label><input id="quoteNotes" maxlength="400" placeholder="Any details we should know"></div><div class="error" id="quoteError"></div><button class="btn blue" style="width:100%" id="requestQuote">Send rate request</button>`}</aside></section></main>${footer()}<div class="modal" id="modal"></div>`;
-  renderServices();renderCart();nav();
+  document.body.innerHTML=`${header(isInr?'':'games')}<main id="main"><section class="catalog-hero wrap"><p class="kicker"><span class="dot"></span>${isInr?'Private access':gameNames[state.game]}</p><h1>${heading}</h1><p>${isInr?'Your approved catalogue. Add items to your cart; prices are verified by the server at submission.':'Browse the catalogue, build a cart, and request a rate.'}</p></section><section class="wrap catalog-layout"><div><div class="notice" style="margin-bottom:16px"><strong>${state.game==='garden'?'Availability matters.':'Service scope matters.'}</strong> ${state.game==='garden'?'Grow a Garden market items are availability-based; an item marked “Price on request” cannot be checked out until a rate is agreed.':'Some services have account-specific scope; final delivery details are confirmed after checkout.'}</div><div id="serviceGrid"></div></div><aside class="cart panel" id="cartAside"><h2>${isInr?'Your cart':'Your rate request'} <span class="cart-badge" id="cartBadge">0</span></h2><ul class="cart-items" id="cartItems"></ul>${isInr?`<div class="cart-summary"><div><span>Subtotal</span><b id="subtotal">₹0</b></div><div><span id="expressLabel">Express Service: Not applied</span><b id="expressPrice">—</b></div><div><strong>Total</strong><strong id="total">₹0</strong></div></div><div class="express"><label><input type="checkbox" id="express"> <span>Add Express Service <small>(+₹${state.expressSurcharge})</small></span></label><span>One priority surcharge per order. It is never multiplied by service.</span></div><button class="btn blue" style="width:100%" id="checkout">Continue to Roblox login</button>`:`<div class="field"><label for="quoteEmail">Contact email</label><input id="quoteEmail" type="email" required placeholder="you@example.com"></div><div class="field"><label for="quoteNotes">Notes (optional)</label><input id="quoteNotes" maxlength="400" placeholder="Any details we should know"></div><div class="error" id="quoteError"></div><button class="btn blue" style="width:100%" id="requestQuote">Send rate request</button>`}</aside></section></main>${footer()}<div class="modal" id="modal"></div><button class="cart-fab" id="cartFab" aria-label="Go to cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.6 12.6a2 2 0 0 0 2 1.6h8a2 2 0 0 0 2-1.6L21 7H6"/></svg><span class="cart-fab-badge" id="cartFabBadge">0</span></button>`;
+  bindServiceEvents();bindCartEvents();renderServices();renderCart();nav();
+  $('#cartFab').onclick=()=>$('#cartAside').scrollIntoView({behavior:prefersReduced?'auto':'smooth',block:'start'});
 }
-function renderServices(){const grid=$('#serviceGrid');grid.innerHTML=state.catalog.map(item=>`<article class="service-card"><div class="top-row"><span class="icon">${svgIcon(item.id)}</span><span class="tag">${item.tag||'Service'}</span></div><h3>${esc(item.name)}</h3><p>${esc(item.description)}</p><footer><span class="price ${item.price==null?'request':''}">${money(item.price)}</span><button class="btn ghost" data-add="${item.id}">Add</button></footer></article>`).join('');grid.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addItem(b.dataset.add))}
-function addItem(id){const item=state.catalog.find(x=>x.id===id);const existing=state.items.find(x=>x.id===id);if(existing)existing.quantity++;else state.items.push({...item,quantity:1});renderCart();toast(`${item.name} added.`)}
-function renderCart(){const out=$('#cartItems');if(!out)return;const isInr=state.market==='inr';if(!state.items.length)out.innerHTML='<li class="cart-empty">No services selected yet.</li>';else out.innerHTML=state.items.map(i=>`<li class="cart-line"><span>${esc(i.name)}<small>Quantity ${i.quantity}${isInr?` · ${money(i.price)} each`:''}</small></span><span>${isInr?`<b>${money(i.price*i.quantity)}</b><br>`:''}<button aria-label="Remove ${esc(i.name)}" data-remove="${i.id}">Remove</button></span></li>`).join('');out.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{state.items=state.items.filter(i=>i.id!==b.dataset.remove);renderCart()});
+function categoryBlockHtml(g){
+  if(g.table){
+    return `<div class="cat-block"><div class="cat-head"><h3>${g.label}</h3><span class="cat-count">${g.items.length} items</span></div><div class="fruit-card panel">${g.items.map(item=>`<div class="fruit-row"><span class="fr-name">${esc(item.name)}${item.tag?`<em class="fr-tag">${esc(item.tag)}</em>`:''}</span><span class="fr-price ${item.price==null?'request':''}">${money(item.price)}</span><span class="fr-action">${stepper(item.id,'sm')}</span></div>`).join('')}</div></div>`;
+  }
+  return `<div class="cat-block"><div class="cat-head"><h3>${g.label}</h3><span class="cat-count">${g.items.length} items</span></div><div class="service-grid">${g.items.map(item=>`<article class="service-card"><div class="top-row"><span class="icon">${svgIcon(item.id)}</span><span class="tag">${item.tag||'Service'}</span></div><h3>${esc(item.name)}</h3><p>${esc(item.description)}</p><footer><span class="price ${item.price==null?'request':''}">${money(item.price)}</span>${stepper(item.id)}</footer></article>`).join('')}</div></div>`;
+}
+function renderServices(){const grid=$('#serviceGrid');if(!grid)return;grid.innerHTML=groupCatalog().map(categoryBlockHtml).join('')}
+function bindServiceEvents(){const grid=$('#serviceGrid');grid.addEventListener('click',e=>{const add=e.target.closest('[data-add]');const inc=e.target.closest('[data-inc]');const dec=e.target.closest('[data-dec]');if(add)addItem(add.dataset.add);else if(inc)addItem(inc.dataset.inc);else if(dec)decItem(dec.dataset.dec)})}
+function addItem(id){const item=state.catalog.find(x=>x.id===id);if(!item)return;const existing=state.items.find(x=>x.id===id);if(existing){if(existing.quantity>=99)return;existing.quantity++}else{state.items.push({...item,quantity:1});toast(`${item.name} added.`)}renderServices();renderCart()}
+function decItem(id){const idx=state.items.findIndex(x=>x.id===id);if(idx<0)return;state.items[idx].quantity--;if(state.items[idx].quantity<=0)state.items.splice(idx,1);renderServices();renderCart()}
+function bindCartEvents(){const out=$('#cartItems');out.addEventListener('click',e=>{const inc=e.target.closest('[data-inc]');const dec=e.target.closest('[data-dec]');const rm=e.target.closest('[data-remove]');if(inc)addItem(inc.dataset.inc);else if(dec)decItem(dec.dataset.dec);else if(rm){state.items=state.items.filter(i=>i.id!==rm.dataset.remove);renderServices();renderCart()}})}
+function renderCart(){const out=$('#cartItems');if(!out)return;const isInr=state.market==='inr';
+  const count=state.items.reduce((n,i)=>n+i.quantity,0);
+  const badge=$('#cartBadge');if(badge)badge.textContent=count;
+  const fabBadge=$('#cartFabBadge');if(fabBadge)fabBadge.textContent=count;
+  const fab=$('#cartFab');if(fab)fab.classList.toggle('has-items',count>0);
+  if(!state.items.length)out.innerHTML='<li class="cart-empty">No services selected yet.</li>';else out.innerHTML=state.items.map(i=>`<li class="cart-line"><span class="cl-icon">${svgIcon(i.id)}</span><span class="cl-info">${esc(i.name)}<small>${isInr?`${money(i.price)} each`:`Quantity ${i.quantity}`}</small></span><span class="cart-line-right">${isInr?`<b>${money(i.price*i.quantity)}</b>`:''}${stepper(i.id,'sm')}<button class="cart-remove" aria-label="Remove ${esc(i.name)}" data-remove="${i.id}">×</button></span></li>`).join('');
   if(isInr){const subtotal=state.items.reduce((x,i)=>x+i.price*i.quantity,0), surcharge=state.express?state.expressSurcharge:0;$('#subtotal').textContent=money(subtotal);$('#total').textContent=money(subtotal+surcharge);$('#expressLabel').textContent=state.express?'Express Service: Applied':'Express Service: Not applied';$('#expressPrice').textContent=state.express?`+${money(surcharge)}`:'—';const box=$('#express');if(box){box.checked=state.express;box.onchange=()=>{state.express=box.checked;renderCart()};$('#checkout').onclick=checkout}}
   else{const btn=$('#requestQuote');if(btn)btn.onclick=requestQuote}}
 function checkout(){if(!state.items.length)return toast('Add at least one service before continuing.');sessionStorage.setItem('k3order',JSON.stringify({game:state.game,items:state.items.map(i=>({id:i.id,quantity:i.quantity})),express:state.express}));location.href='/roblox-login.html'}
