@@ -1,7 +1,0 @@
-User-agent: *
-Disallow: /inr.html
-Disallow: /inr-login.html
-Disallow: /inr-blox-fruits.html
-Disallow: /inr-grow-a-garden.html
-Disallow: /roblox-login.html
-Disallow: /account.html
