@@ -162,7 +162,7 @@ function header(active=''){
   const ctaHtml=cta?`<a class="btn blue" href="${cta.href}">${cta.label}</a>`:'';
   return `<a class="skip-link" href="#main">Skip to content</a><header><nav class="wrap" aria-label="Primary">
 <a class="brand" href="/"><span class="mark"><span>K</span></span>k3rxsene's Services</a>
-<div class="nav-search" role="search"><label class="sr-only" for="siteSearch" style="position:absolute;left:-9999px">Search services</label>${ico('search')}<input id="siteSearch" type="search" placeholder="Search services, e.g. leveling, raids, seeds" autocomplete="off"><button class="clear-search" id="clearSearch" aria-label="Clear search">×</button><div class="search-panel" id="searchPanel" role="listbox"></div></div>
+<div class="nav-search" role="search"><label class="sr-only" for="siteSearch" style="position:absolute;left:-9999px">Search services</label>${ico('search')}<input id="siteSearch" type="search" placeholder="Search For Services" autocomplete="off"><button class="clear-search" id="clearSearch" aria-label="Clear search">×</button><div class="search-panel" id="searchPanel" role="listbox"></div></div>
 <div class="navlinks">
 <a class="${active==='games'?'active':''}" href="/#games">Games</a><a href="/#status">Stats</a><a href="/support.html">Support</a>
 <div class="nav-iconlinks">
