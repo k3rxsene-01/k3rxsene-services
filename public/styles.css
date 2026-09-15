@@ -518,3 +518,54 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .ticket-form textarea{width:100%;border:1px solid var(--line-strong);border-radius:10px;background:#080d1c;color:var(--text);padding:11px;font:inherit;resize:vertical;min-height:80px}
 .ticket-form select{width:100%;border:1px solid var(--line-strong);background:#080d1c;color:var(--text);border-radius:10px;padding:11px;font-size:13.5px}
 .ticket-status{display:flex;align-items:center;gap:10px;margin-top:8px}
+/* ============ v3 additions: micro-interactions, alignment & rhythm polish ============ */
+
+/* Consistent vertical rhythm for section headings — every eyebrow/title/subtitle
+   block uses the same gap regardless of which section it appears in. */
+.section-head{gap:12px}
+.section-head h2{line-height:1.15}
+
+/* Icon-only controls get a small, consistent press/hover response instead of
+   sitting completely static. Kept subtle — one movement, not a pile of effects. */
+.nav-iconlink,.wish-btn,.qty-btn,.icon-btn,.cart-fab{transition:transform .18s var(--spring),background .2s,border-color .2s,color .2s}
+.nav-iconlink:active,.wish-btn:active,.qty-btn:active{transform:scale(.9)}
+.wish-btn:hover{border-color:color-mix(in srgb,#ff6a8a 45%,var(--line-strong))}
+
+/* Service/game card icon responds to the same hover that lifts the card,
+   instead of staying inert while everything else around it moves. */
+.service-card:hover .icon svg,.card:hover .icon svg{transform:scale(1.08)}
+.service-card .icon svg,.card .icon svg{transition:transform .3s var(--spring)}
+
+/* Underline-on-hover for plain nav links, replacing the flat color-swap —
+   gives a clear, consistent "this is clickable" signal across every nav. */
+.navlinks a:not(.btn),.policy-toc a,.breadcrumbs a{position:relative}
+.navlinks a:not(.btn):after{content:"";position:absolute;left:0;right:100%;bottom:-4px;height:1.5px;background:var(--accent2);transition:right .25s var(--ease)}
+.navlinks a:not(.btn):hover:after,.navlinks a.active:after{right:0}
+
+/* Primary buttons get a touch more spring on press so confirmation actions
+   (submit order, send request) feel responsive rather than just decorative. */
+.btn:active{transform:scale(.97)}
+.btn.blue:hover{box-shadow:0 12px 30px rgba(60,130,255,.34)}
+
+/* Toast entrance settles instead of just appearing/disappearing on a linear clock. */
+.toast{transition:transform .35s var(--spring),opacity .3s var(--ease)}
+
+/* Status pill gets a gentle pulse only while an order is actively in progress,
+   so movement signals something real (work happening) rather than decoration. */
+.ot-step.current .ot-dot{animation:otpulse 1.8s ease-in-out infinite}
+@keyframes otpulse{0%,100%{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 25%,transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent2) 12%,transparent)}}
+
+/* Roblox identity panel used on the checkout step and account page. */
+.identity-detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 20px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.identity-detail-grid div{display:flex;flex-direction:column;gap:3px}
+.identity-detail-grid span{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted2);font-weight:700}
+.identity-detail-grid b{font-size:13px;color:var(--text);font-weight:600;word-break:break-word}
+.identity-avatar-lg{width:56px;height:56px;border-radius:14px;object-fit:cover;border:1px solid var(--line-strong);background:var(--panel-solid)}
+@media(max-width:600px){.identity-detail-grid{grid-template-columns:1fr}}
+
+/* Receipt line list on the order-confirmation modal. */
+.receipt-block{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.receipt-block h4{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted2);margin-bottom:8px;font-weight:700}
+.receipt-block dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font-size:12.5px}
+.receipt-block dt{color:var(--muted);white-space:nowrap}
+.receipt-block dd{margin:0;color:var(--text);font-weight:600;text-align:right;word-break:break-word}

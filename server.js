@@ -90,6 +90,9 @@ function user(req) { const id=parseCookies(req).sid; const session=id && session
 function makeSession(res, attributes={}) { const id=crypto.randomBytes(32).toString('hex'); const session={ expires:now()+1000*60*60*12, ...attributes }; sessions.set(id, session); res.setHeader('Set-Cookie', `sid=${id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=43200${process.env.NODE_ENV==='production'?'; Secure':''}`); return session; }
 function safeEqual(a,b) { const aa=Buffer.from(String(a||'')), bb=Buffer.from(String(b||'')); return aa.length===bb.length && crypto.timingSafeEqual(aa,bb); }
 function cleanIdentityText(value) { return String(value||'').replace(/[<>]/g,'').slice(0,120); }
+// Only ever accept an https:// Roblox URL for a profile/avatar field — never render an
+// arbitrary string from the OAuth response as a link.
+function cleanUrl(value) { const v=String(value||''); return /^https:\/\/[a-z0-9.-]*roblox(usercontent)?\.com\//i.test(v) ? v.slice(0,300) : null; }
 function loginAllowed(req) { const key=req.socket.remoteAddress||'unknown'; const record=loginAttempts.get(key)||{count:0,until:0}; if(record.until>now()) return false; if(record.until && record.until<=now()) loginAttempts.delete(key); return true; }
 function recordLoginFailure(req) { const key=req.socket.remoteAddress||'unknown'; const record=loginAttempts.get(key)||{count:0,until:0}; record.count++; if(record.count>=5){record.count=0;record.until=now()+15*60*1000} loginAttempts.set(key,record); }
 function rateLimited(map, key, limit, windowMs) { const record=map.get(key)||{count:0,resetAt:now()+windowMs}; if(record.resetAt<now()){record.count=0;record.resetAt=now()+windowMs} record.count++; map.set(key,record); return record.count>limit; }
@@ -119,8 +122,10 @@ function validateOrder(body, session) {
   return { id:`K3-${crypto.randomUUID().slice(0,8).toUpperCase()}`, game, items, subtotal, express, surcharge, total:subtotal+surcharge, notes, customer:session.roblox, status:'received', statusHistory:[{status:'received',at:new Date().toISOString()}], createdAt:new Date().toISOString() };
 }
 function persistOrder(order) { ordersDb[order.id] = order; saveStore('orders.json', ordersDb); }
-function publicOrderView(order) { return { id:order.id, game:order.game, items:order.items, subtotal:order.subtotal, express:order.express, surcharge:order.surcharge, total:order.total, status:order.status, statusLabel:STATUS_LABEL[order.status]||order.status, statusHistory:order.statusHistory, createdAt:order.createdAt }; }
-async function sendWebhook(order) { const url=process.env.DISCORD_WEBHOOK_URL; if (!url) return; const lines=order.items.map(i=>`• ${i.name} ×${i.quantity} — ₹${i.lineTotal}`).join('\n'); const content=`**Order ${order.id}**\n**Customer**\nDisplay Name: ${order.customer.displayName}\nUsername: ${order.customer.username}\nRoblox user ID: ${order.customer.userId || 'Unknown'}\nEmail: ${order.customer.email || 'Not provided'}\n\n**Order**\nGame: ${order.game === 'blox' ? 'Blox Fruits' : 'Grow a Garden'}\n${lines}\n\nSubtotal: ₹${order.subtotal}\nExpress Service: ${order.express ? `Applied (+₹${order.surcharge})` : 'Not applied'}\nTotal: ₹${order.total}\n${order.notes ? `Customer notes: ${order.notes}\n` : ''}Timestamp: ${order.createdAt}`;
+function publicOrderView(order) { return { id:order.id, game:order.game, items:order.items, subtotal:order.subtotal, express:order.express, surcharge:order.surcharge, total:order.total, status:order.status, statusLabel:STATUS_LABEL[order.status]||order.status, statusHistory:order.statusHistory, createdAt:order.createdAt, customer:order.customer }; }
+async function sendWebhook(order) { const url=process.env.DISCORD_WEBHOOK_URL; if (!url) return; const lines=order.items.map(i=>`• ${i.name} ×${i.quantity} — ₹${i.lineTotal}`).join('\n');
+  const c=order.customer;
+  const content=`**Order ${order.id}**\n**Customer (via Roblox OAuth — no email on file, this is everything Roblox gave us)**\nDisplay Name: ${c.displayName}\nUsername: ${c.username}\nRoblox user ID: ${c.userId || 'Unknown'}\nProfile: ${c.profileUrl || 'Not provided'}\nAccount created: ${c.accountCreatedAt || 'Not provided'}\nLocale: ${c.locale || 'Not provided'}\nConnected to this order at: ${c.connectedAt || 'Unknown'}\n\n**Order**\nGame: ${order.game === 'blox' ? 'Blox Fruits' : 'Grow a Garden'}\n${lines}\n\nSubtotal: ₹${order.subtotal}\nExpress Service: ${order.express ? `Applied (+₹${order.surcharge})` : 'Not applied'}\nTotal: ₹${order.total}\n${order.notes ? `Customer notes: ${order.notes}\n` : ''}Timestamp: ${order.createdAt}`;
   const response=await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})}); if(!response.ok) throw new Error('Order delivery could not be confirmed. Please try again.');
 }
 function staticFile(res, pathname) { let file=pathname==='/'?'/index.html':pathname; const root=path.resolve(__dirname,'public'); const candidate=path.resolve(root,'.'+file); const allowed=(candidate===root || candidate.startsWith(root+path.sep)) ? candidate : null; if (!allowed || !fs.existsSync(allowed) || fs.statSync(allowed).isDirectory()) return false; const ext=path.extname(allowed); const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml'}; send(res,200,fs.readFileSync(allowed),types[ext]||'application/octet-stream'); return true; }
@@ -145,7 +150,23 @@ const server=http.createServer(async(req,res)=>{ const url=new URL(req.url,`http
     if(!tokenResponse.ok || !tokens.access_token) return send(res,401,{error:'Roblox identity verification failed.'});
     const userinfoResponse=await fetch(ROBLOX_USERINFO_URL,{headers:{Authorization:`Bearer ${tokens.access_token}`}}); const identity=await userinfoResponse.json().catch(()=>({}));
     if(!userinfoResponse.ok || !identity.sub || !identity.preferred_username) return send(res,401,{error:'Roblox identity verification failed.'});
-    s.roblox={displayName:cleanIdentityText(identity.name||identity.nickname||identity.preferred_username),username:cleanIdentityText(identity.preferred_username),email:'',userId:cleanIdentityText(identity.sub)}; delete s.robloxState; delete s.robloxNonce; res.writeHead(302,{Location:'/roblox-login.html'}); return res.end();
+    // Roblox's userinfo response (openid + profile scope) can include more than just a
+    // name and ID. We don't get an email from Roblox — this app still has no email of its
+    // own for the customer — but everything Roblox *does* hand back is worth keeping on
+    // the order record, since it's the only account-identity trail we have for fulfilment
+    // and support. Every field here is sanitized text/URL, never a token.
+    s.roblox={
+      displayName:cleanIdentityText(identity.name||identity.nickname||identity.preferred_username),
+      username:cleanIdentityText(identity.preferred_username),
+      email:'',
+      userId:cleanIdentityText(identity.sub),
+      profileUrl:cleanUrl(identity.profile),
+      avatarUrl:cleanUrl(identity.picture),
+      accountCreatedAt:cleanIdentityText(identity.created_at).slice(0,40)||null,
+      locale:cleanIdentityText(identity.locale).slice(0,20)||null,
+      connectedAt:new Date().toISOString(),
+    };
+    delete s.robloxState; delete s.robloxNonce; res.writeHead(302,{Location:'/roblox-login.html'}); return res.end();
   }
   if (req.method==='POST' && url.pathname==='/api/quotes') { const key=req.socket.remoteAddress||'unknown'; if(rateLimited(quoteAttempts,key,5,10*60*1000)) return send(res,429,{error:'Too many requests. Please wait a few minutes and try again.'}); const quote=validateQuoteRequest(await readJson(req)); await sendQuoteWebhook(quote); return send(res,201,{ok:true,id:quote.id}); }
   if (req.method==='POST' && url.pathname==='/api/orders') { const s=user(req); if (!s?.inr) return send(res,403,{error:'Sign in to INR access before placing an INR order.'}); if (!s.roblox) return send(res,401,{error:'Authenticate with Roblox before confirming your order.'}); const order=validateOrder(await readJson(req),s); persistOrder(order); try { await sendWebhook(order); } catch(e) { order.status='needs_info'; order.statusHistory.push({status:'needs_info',at:new Date().toISOString(),note:'Delivery to our team could not be confirmed automatically.'}); persistOrder(order); throw e; } return send(res,201,{ok:true,order:{id:order.id,total:order.total}}); }

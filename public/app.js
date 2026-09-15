@@ -12,6 +12,20 @@ const safeNext = value => ['/inr.html','/inr-blox-fruits.html','/inr-grow-a-gard
 async function api(url, options={}) { const r=await fetch(url,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options}); const data=await r.json().catch(()=>({error:'Unexpected server response.'})); if(!r.ok) throw new Error(data.error||'Something went wrong.'); return data; }
 function toast(message){let e=$('.toast');if(!e){e=document.createElement('div');e.className='toast';e.setAttribute('role','status');e.setAttribute('aria-live','polite');document.body.append(e)}e.textContent=message;e.classList.remove('hidden');clearTimeout(window.toastTimer);window.toastTimer=setTimeout(()=>e.classList.add('hidden'),3600)}
 function money(value){return value==null?'Price on request':`₹${value.toLocaleString('en-IN')}`}
+/* Everything Roblox's own sign-in actually hands back for the connected account. Roblox
+   doesn't give us an email, so this — not a login form — is the full identity trail we
+   have for a fulfilment or support conversation. Shown to the customer themselves, and
+   this same set is what lands on the order record our team sees. */
+function robloxDetailGrid(r){
+  const rows=[
+    ['Display name', r.displayName],
+    ['Username', '@'+r.username],
+    ['Roblox user ID', r.userId],
+    ['Account created', r.accountCreatedAt?new Date(r.accountCreatedAt).toLocaleDateString():'Not provided'],
+    ['Connected', r.connectedAt?new Date(r.connectedAt).toLocaleString():'Just now'],
+  ];
+  return `<div class="identity-detail-grid">${rows.map(([label,val])=>`<div><span>${esc(label)}</span><b>${esc(val||'—')}</b></div>`).join('')}</div>`;
+}
 
 /* ---------- local, device-only storage (wishlist / recently viewed / recent orders / recent searches) ---------- */
 const LS = {
@@ -58,13 +72,13 @@ const ICONS = {
   race2:'<path d="M4 9c0-3 3.5-5 8-5s8 2 8 5v3c0 4-3.5 7-8 7s-8-3-8-7z"/>',
   sword:'<path d="M4 20 16 8"/><path d="M13 5l3 3-2 2-3-3z"/><path d="M20 20 8 8"/><path d="M11 5 8 8l2 2 3-3z"/>',
   guitar:'<circle cx="8" cy="17" r="3"/><circle cx="16" cy="15" r="3"/><path d="M11 17V4l8-2v13"/>',
-  coin:'<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10c0-1.4 1.2-2.4 2.5-2.4s2.5.9 2.5 2.1c0 2.1-3 1.9-3 4"/>',
+  coin:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v9"/><path d="M9.7 9.6c0-1.2 1.1-2 2.3-2s2.3.7 2.3 1.8c0 2.3-4.6 1.9-4.6 4.2 0 1.1 1 1.9 2.3 1.9s2.3-.8 2.3-2"/>',
   shield:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   flame:'<path d="M12 21s7-4.5 7-10a7 7 0 0 0-7-7 5 5 0 0 0-1 9.9C9.5 12 8 10.5 8 8c-2 2-3 4.5-3 7 0 3.3 3.1 6 7 6z"/>',
   leaf:'<path d="M5 20c9 0 14-5 14-14 0-1 0-2-.2-3C9.8 3.5 5 8.5 5 17c0 1 0 2 .2 3z"/><path d="M5 20 17 8"/>',
   drop:'<path d="M12 3c3.5 4.5 7 8.5 7 12.2A7 7 0 0 1 5 15.2C5 11.5 8.5 7.5 12 3z"/>',
   paw:'<circle cx="7" cy="8" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="17" cy="8" r="2"/><path d="M12 12c-3.5 0-6 2.4-6 5.2 0 1.8 1.4 2.8 3 2.4 1-.3 2-.9 3-.9s2 .6 3 .9c1.6.4 3-.6 3-2.4 0-2.8-2.5-5.2-6-5.2z"/>',
-  gift:'<rect x="4" y="9" width="16" height="12" rx="1.5"/><path d="M4 13h16M12 9v12"/><path d="M12 9C9.5 9 8 7.5 8 5.8 8 4.3 9.4 3.5 10.5 4.3 11.5 5 12 6.5 12 9zM12 9c2.5 0 4-1.5 4-3.2 0-1.5-1.4-2.3-2.5-1.5C12.5 5 12 6.5 12 9z"/>',
+  gift:'<rect x="4" y="9.5" width="16" height="10.5" rx="1.5"/><path d="M4 13.5h16M12 9.5v10.5"/><path d="M12 9.5c-1.8 0-3.6-1-3.6-2.75C8.4 5 9.6 4 10.8 4c1.3 0 2.1 1 2.1 2.3M12 9.5c1.8 0 3.6-1 3.6-2.75C15.6 5 14.4 4 13.2 4c-1.3 0-2.1 1-2.1 2.3"/>',
   star:'<path d="M12 3l2.5 6.5L21 11l-6.5 2.5L12 20l-2.5-6.5L3 11l6.5-2.5L12 3z"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   heart:'<path d="M12 20.5s-7.5-4.6-9.7-9.1C.6 8 2.2 4.5 5.6 3.9c2-.4 3.9.5 5 2.1 1.1-1.6 3-2.5 5-2.1 3.4.6 5 4.1 3.3 7.5-2.2 4.5-9.7 9.1-9.7 9.1z"/>',
@@ -72,8 +86,9 @@ const ICONS = {
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
   x:'<path d="M6 6l12 12M18 6 6 18"/>',
-  info:'<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>',
-  roblox:'<rect x="5" y="5" width="14" height="14" rx="2" transform="rotate(-8 12 12)"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11.5v5"/><path d="M12 8v.01"/>',
+  /* Faceted-gem mark used as a neutral stand-in for the connected-platform icon — not a trademarked logo. */
+  roblox:'<path d="M12 3l7 4.5v9L12 21l-7-4.5v-9z"/><path d="M12 3v18"/><path d="M5 7.5l7 4.5 7-4.5"/><path d="M5 16.5l7-4.5 7 4.5"/>',
 };
 function pickIcon(id){
   const k = String(id);
@@ -131,8 +146,20 @@ function requirementsFor(game){
 }
 
 /* ---------- chrome (header/footer/nav) ---------- */
+/* The primary nav CTA changes with context instead of always saying "Get Started" —
+   that label only makes sense for a first-time visitor who hasn't done anything yet. */
+function navCta(){
+  const path=location.pathname;
+  const onOwnPage=['/account.html','/roblox-login.html','/inr-login.html'].includes(path);
+  if(onOwnPage) return '';
+  const connected=Boolean(state.session && state.session.roblox);
+  const label=connected?'Browse services':'Get started';
+  return {label, href:'/#games'};
+}
 function header(active=''){
   const wc=wishlist.all().length;
+  const cta=navCta();
+  const ctaHtml=cta?`<a class="btn blue" href="${cta.href}">${cta.label}</a>`:'';
   return `<a class="skip-link" href="#main">Skip to content</a><header><nav class="wrap" aria-label="Primary">
 <a class="brand" href="/"><span class="mark"><span>K</span></span>k3rxsene's Services</a>
 <div class="nav-search" role="search"><label class="sr-only" for="siteSearch" style="position:absolute;left:-9999px">Search services</label>${ico('search')}<input id="siteSearch" type="search" placeholder="Search services, e.g. leveling, raids, seeds" autocomplete="off"><button class="clear-search" id="clearSearch" aria-label="Clear search">×</button><div class="search-panel" id="searchPanel" role="listbox"></div></div>
@@ -142,12 +169,12 @@ function header(active=''){
 <a class="nav-iconlink" href="/account.html?tab=wishlist" aria-label="Wishlist">${ico('heart')}<span class="count-badge wishlist-count${wc?'':' hidden'}">${wc}</span></a>
 <a class="nav-iconlink" href="/account.html" aria-label="Your account">${ico('user')}</a>
 </div>
-<a class="btn blue" href="/#games">Get Started</a>
+${ctaHtml}
 <button class="menu icon-btn" id="menu" aria-label="Open menu" aria-expanded="false"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
 </div></nav></header>
 <div class="mobile-menu" id="mobileMenu">
 <div class="mobile-search"><label class="sr-only" for="siteSearchMobile" style="position:absolute;left:-9999px">Search services</label>${ico('search')}<input id="siteSearchMobile" type="search" placeholder="Search services" autocomplete="off"><div class="search-panel" id="searchPanelMobile" role="listbox"></div></div>
-<a href="/#games">Games</a><a href="/#status">Stats</a><a href="/support.html">Support</a><a href="/account.html?tab=wishlist">Wishlist (${wc})</a><a href="/account.html">Your account</a><a class="btn blue" href="/#games">Get Started</a></div>`;
+<a href="/#games">Games</a><a href="/#status">Stats</a><a href="/support.html">Support</a><a href="/account.html?tab=wishlist">Wishlist (${wc})</a><a href="/account.html">Your account</a>${cta?`<a class="btn blue" href="${cta.href}">${cta.label}</a>`:''}</div>`;
 }
 function footer(){return `<footer class="site-footer wrap"><span class="footer-brand"><span class="mark" style="width:26px;height:26px"><span style="font-size:11px">K</span></span>k3rxsene's Services</span><span>© 2026 k3rxsene's Services. Independent Roblox service provider — not affiliated with or endorsed by Roblox Corporation.</span><span><a href="/support.html">Support &amp; policies</a></span></footer>`}
 
@@ -300,7 +327,7 @@ function renderHome(){
 </main>
 <div class="band">
 <section class="section wrap" id="games">
-  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Roblox experiences we support</p><h2>Choose your game</h2><p>Each catalogue keeps the same reliable flow, with services tailored to the experience.</p></div>
+  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Roblox experiences we support</p><h2>Choose Your Game</h2><p>Each catalogue keeps the same reliable flow, with services tailored to the experience.</p></div>
   <div class="game-grid reveal">
     <a class="game-card" href="/blox-fruits.html"><img src="/bloxfruits.png" alt="Blox Fruits"><h3>Blox Fruits</h3><p>Leveling, Race V4, raids, swords and more.</p><span class="btn blue">View services</span></a>
     <a class="game-card" href="/grow-a-garden.html"><img src="/growagarden.png" alt="Grow a Garden"><h3>Grow a Garden</h3><p>Valuable seeds, pets, sprinklers and currency.</p><span class="btn blue">View services</span></a>
@@ -312,7 +339,7 @@ function renderHome(){
 </section>
 </div>
 <section class="section wrap" id="status">
-  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Track record</p><h2>Our statistics</h2><p>Figures from our completed operations.</p></div>
+  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Track record</p><h2>Our Statistics</h2><p>Figures from our completed operations.</p></div>
   <div class="stats reveal">
     <div class="stat"><b data-count="500" data-suffix="+">0</b><span>Orders completed</span></div>
     <div class="stat"><b data-count="100" data-suffix="%">0</b><span>Orders server-priced &amp; validated</span></div>
@@ -322,17 +349,17 @@ function renderHome(){
 </section>
 <div class="band">
 <section class="section wrap" id="how">
-  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Workflow</p><h2>How it works</h2><p>Four steps, start to finish — nothing is fulfilled until you've confirmed everything.</p></div>
+  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Workflow</p><h2>How It Works</h2><p>Four steps, start to finish — nothing is fulfilled until you've confirmed everything.</p></div>
   <div class="steps reveal">
-    <article class="step"><div class="step-no">1</div><h3>Pick a game &amp; service</h3><p>Browse the Blox Fruits or Grow a Garden catalogue, open a service page to see exactly what's included, and add it to your cart.</p></article>
+    <article class="step"><div class="step-no">1</div><h3>Pick a Game &amp; Service</h3><p>Browse the Blox Fruits or Grow a Garden catalogue, open a service page to see exactly what's included, and add it to your cart.</p></article>
     <article class="step"><div class="step-no">2</div><h3>Connect Roblox</h3><p>Sign in with Roblox directly. We only ever receive your username and display name — never your password.</p></article>
-    <article class="step"><div class="step-no">3</div><h3>Review &amp; submit</h3><p>Check the exact price, options and connected account, add optional notes, then submit your order.</p></article>
-    <article class="step"><div class="step-no">4</div><h3>We fulfil it</h3><p>Your order is queued internally and worked on the account you connected. You'll be updated on progress and can track a local copy of your order in Your account.</p></article>
+    <article class="step"><div class="step-no">3</div><h3>Review &amp; Submit</h3><p>Check the exact price, options and connected account, add optional notes, then submit your order.</p></article>
+    <article class="step"><div class="step-no">4</div><h3>We Fulfil It</h3><p>Your order is queued internally and worked on the account you connected. You'll be updated on progress and can track a local copy of your order in Your account.</p></article>
   </div>
 </section>
 </div>
 <section class="section wrap" id="faq">
-  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Support</p><h2>Frequently asked questions</h2><p>Everything worth knowing before you order. Full policies live on the <a href="/support.html" style="color:var(--accent2)">Support &amp; policies</a> page.</p></div>
+  <div class="section-head reveal"><p class="kicker"><span class="dot"></span>Support</p><h2>Frequently Asked Questions</h2><p>Everything worth knowing before you order. Full policies live on the <a href="/support.html" style="color:var(--accent2)">Support &amp; policies</a> page.</p></div>
   <div class="faq-wrap reveal">
     <div class="accordion">
       <article class="faq-item active"><button class="faq-q" aria-expanded="true">What is k3rxsene's Services?<span class="plus"></span></button><div class="faq-a"><div><p>An independent service provider handling Blox Fruits leveling, Race V4, swords and fruits, plus Grow a Garden seeds, pets and sprinklers — with a transparent catalogue and order flow. We are not affiliated with or endorsed by Roblox Corporation.</p></div></div></article>
@@ -487,12 +514,12 @@ async function renderServiceDetail(){
 <div class="detail-hero"><img src="${GAME_META[game].img}" alt=""><div><p class="kicker"><span class="dot"></span>${esc(catLabel)}${item.featured?' · Bestseller':''}</p><h1 style="font-size:clamp(26px,4vw,40px)">${esc(item.name)}</h1><p style="color:var(--muted);max-width:560px;margin-top:8px">${esc(item.description)}</p>${ratingRowHtml(game,item.id)}</div></div>
 <div class="detail-layout">
   <div class="detail-main">
-    <div class="panel"><h2>What's included</h2><div class="included-grid"><div class="yes"><h3>${ico('check')} Included</h3><ul>${scope.included.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div><div class="no"><h3>${ico('x')} Not included</h3><ul>${scope.excluded.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div></div></div>
-    <div class="panel"><h2>Requirements before you order</h2><ul style="color:var(--muted);font-size:13.5px;line-height:1.8;padding-left:20px;margin:0">${reqs.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>
-    <div class="panel"><h2>Fulfilment process</h2><ol style="color:var(--muted);font-size:13.5px;line-height:1.9;padding-left:20px;margin:0"><li>Your order is recorded with an exact, server-verified price and queued internally.</li><li>Work begins on the Roblox account you connected at checkout.</li><li>${isConstrained(item.tag)?'For availability-based items, stock is confirmed first — we\u2019ll contact you if anything changes.':'Most orders begin the same day, subject to queue volume.'}</li><li>You'll be notified when the service is complete. Keep your order reference for any support request.</li></ol></div>
+    <div class="panel"><h2>What's Included</h2><div class="included-grid"><div class="yes"><h3>${ico('check')} Included</h3><ul>${scope.included.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div><div class="no"><h3>${ico('x')} Not included</h3><ul>${scope.excluded.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div></div></div>
+    <div class="panel"><h2>Requirements Before You Order</h2><ul style="color:var(--muted);font-size:13.5px;line-height:1.8;padding-left:20px;margin:0">${reqs.map(r=>`<li>${esc(r)}</li>`).join('')}</ul></div>
+    <div class="panel"><h2>Fulfilment Process</h2><ol style="color:var(--muted);font-size:13.5px;line-height:1.9;padding-left:20px;margin:0"><li>Your order is recorded with an exact, server-verified price and queued internally.</li><li>Work begins on the Roblox account you connected at checkout.</li><li>${isConstrained(item.tag)?'For availability-based items, stock is confirmed first — we\u2019ll contact you if anything changes.':'Most orders begin the same day, subject to queue volume.'}</li><li>You'll be notified when the service is complete. Keep your order reference for any support request.</li></ol></div>
     ${related.length?`<div class="panel"><h2>Related services in ${esc(catLabel)}</h2><div class="related-strip">${related.map(r=>`<article class="service-card" style="min-height:auto"><div class="top-row"><span class="icon">${svgIcon(r.id)}</span><span class="tag">${r.tag||'Service'}</span></div><h3 style="font-size:15px"><a href="/service.html?game=${game}&id=${r.id}" style="color:inherit">${esc(r.name)}</a></h3><footer style="margin-top:10px"><span class="price ${r.price==null?'request':''}">${money(r.price)}</span><a class="btn ghost sm" href="/service.html?game=${game}&id=${r.id}">View</a></footer></article>`).join('')}</div></div>`:''}
-    ${recent.length?`<div class="panel"><h2>Recently viewed</h2><div class="related-strip">${recent.map(r=>`<article class="service-card" style="min-height:auto"><div class="top-row"><span class="icon">${svgIcon(r.id)}</span></div><h3 style="font-size:15px"><a href="/service.html?game=${r.game}&id=${r.id}" style="color:inherit">${esc(r.name)}</a></h3></article>`).join('')}</div></div>`:''}
-    <div class="panel"><h2>Customer reviews</h2>${ratingRowHtml(game,item.id)||'<p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">No reviews yet for this service — be the first to complete an order and leave one.</p>'}
+    ${recent.length?`<div class="panel"><h2>Recently Viewed</h2><div class="related-strip">${recent.map(r=>`<article class="service-card" style="min-height:auto"><div class="top-row"><span class="icon">${svgIcon(r.id)}</span></div><h3 style="font-size:15px"><a href="/service.html?game=${r.game}&id=${r.id}" style="color:inherit">${esc(r.name)}</a></h3></article>`).join('')}</div></div>`:''}
+    <div class="panel"><h2>Customer Reviews</h2>${ratingRowHtml(game,item.id)||'<p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">No reviews yet for this service — be the first to complete an order and leave one.</p>'}
       <div id="reviewList">${reviews.length?reviews.map(r=>`<div class="review-card"><div class="rv-top"><span class="rating-stars">${[1,2,3,4,5].map(n=>starIcon(n<=r.rating)).join('')}</span><span style="color:var(--muted2)">${esc(r.displayName||'Verified customer')} · <span style="color:var(--accent2);font-weight:700">Order-verified</span></span></div>${r.text?`<p>${esc(r.text)}</p>`:''}</div>`).join(''):''}</div>
       <div class="review-form"><h3 style="font-size:14.5px;margin-bottom:6px">Leave a review</h3><p style="color:var(--muted);font-size:12.5px;margin-bottom:10px">Only customers with a completed order for this service can review it. Enter your order reference (e.g. K3-XXXXXXXX) to verify.</p>
         <div class="field"><label for="rvOrder">Order reference</label><input id="rvOrder" placeholder="K3-XXXXXXXX"></div>
@@ -549,13 +576,13 @@ function renderNotFound(message){
 /* ---------- private / hidden access — no public links point here ---------- */
 function renderInrLogin(){
   document.body.className='';
-  document.body.innerHTML=`${header()}<main class="auth-page" id="main"><form class="auth-card panel" id="login"><p class="kicker"><span class="dot"></span>Private access</p><h1>Client sign in</h1><p>Use the access details supplied to you directly. There is no public registration.</p><div class="field"><label for="username">Username</label><input id="username" autocomplete="username" required></div><div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required></div><div class="error" id="error" role="alert"></div><button class="btn blue" style="width:100%">Continue</button></form></main>${footer()}`;nav();
+  document.body.innerHTML=`${header()}<main class="auth-page" id="main"><form class="auth-card panel" id="login"><p class="kicker"><span class="dot"></span>Private access</p><h1>Client Sign In</h1><p>Use the access details supplied to you directly. There is no public registration.</p><div class="field"><label for="username">Username</label><input id="username" autocomplete="username" required></div><div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required></div><div class="error" id="error" role="alert"></div><button class="btn blue" style="width:100%">Continue</button></form></main>${footer()}`;nav();
   $('#login').onsubmit=async e=>{e.preventDefault();const b=$('#login button');b.disabled=true;b.textContent='Checking access…';try{await api('/api/inr/login',{method:'POST',body:JSON.stringify({username:$('#username').value,password:$('#password').value})});location.href=safeNext(new URLSearchParams(location.search).get('next'))}catch(err){$('#error').textContent=err.message;b.disabled=false;b.textContent='Continue'}}
 }
 async function renderInr(){
   await initSession();if(!state.session.inr){location.href='/inr-login.html?next=/inr.html';return}
   document.body.className='';
-  document.body.innerHTML=`${header()}<main id="main"><section class="catalog-hero wrap"><p class="kicker"><span class="dot"></span>Authenticated access</p><h1>Your catalogue</h1><p>Select a game to see its pricing and build a secure order.</p></section><section class="wrap section" style="padding-top:10px"><div class="game-grid"><a class="game-card" href="/inr-blox-fruits.html"><img src="/bloxfruits.png" alt="Blox Fruits"><h3>Blox Fruits</h3><p>Pricing and checkout.</p><span class="btn blue">View catalogue</span></a><a class="game-card" href="/inr-grow-a-garden.html"><img src="/growagarden.png" alt="Grow a Garden"><h3>Grow a Garden</h3><p>Pricing and checkout.</p><span class="btn blue">View catalogue</span></a><article class="game-card"><span class="placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="60" height="60"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2c0-1.5 1.2-2.6 2.6-2.6 1.5 0 2.6 1 2.6 2.3 0 2.2-3.1 2-3.1 4.2"/><path d="M12 17h.01"/></svg></span><h3>More games</h3><p>Coming soon.</p></article></div><button class="btn ghost" style="margin-top:25px" id="logout">Sign out</button></section></main>${footer()}`;nav();
+  document.body.innerHTML=`${header()}<main id="main"><section class="catalog-hero wrap"><p class="kicker"><span class="dot"></span>Authenticated access</p><h1>Your Catalogue</h1><p>Select a game to see its pricing and build a secure order.</p></section><section class="wrap section" style="padding-top:10px"><div class="game-grid"><a class="game-card" href="/inr-blox-fruits.html"><img src="/bloxfruits.png" alt="Blox Fruits"><h3>Blox Fruits</h3><p>Pricing and checkout.</p><span class="btn blue">View catalogue</span></a><a class="game-card" href="/inr-grow-a-garden.html"><img src="/growagarden.png" alt="Grow a Garden"><h3>Grow a Garden</h3><p>Pricing and checkout.</p><span class="btn blue">View catalogue</span></a><article class="game-card"><span class="placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="60" height="60"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2c0-1.5 1.2-2.6 2.6-2.6 1.5 0 2.6 1 2.6 2.3 0 2.2-3.1 2-3.1 4.2"/><path d="M12 17h.01"/></svg></span><h3>More games</h3><p>Coming soon.</p></article></div><button class="btn ghost" style="margin-top:25px" id="logout">Sign out</button></section></main>${footer()}`;nav();
   $('#logout').onclick=async()=>{await api('/api/logout',{method:'POST'});location.href='/'}
 }
 async function renderRobloxLogin(){
@@ -564,9 +591,9 @@ async function renderRobloxLogin(){
   document.body.className='';
   document.body.innerHTML=`${header()}<main class="auth-page" id="main"><section class="auth-card panel" style="width:min(560px,100%)">
 <div class="progress-track"><div class="progress-step done"><span class="ps-dot">${ico('check')}</span><span class="ps-label">Cart</span></div><div class="progress-line"></div><div class="progress-step current"><span class="ps-dot">2</span><span class="ps-label">Roblox</span></div><div class="progress-line"></div><div class="progress-step"><span class="ps-dot">3</span><span class="ps-label">Review</span></div></div>
-<p class="kicker"><span class="dot"></span>Secure checkout</p><h1>Connect your Roblox identity</h1><p>Before you can confirm an order, sign in with Roblox directly. This order will be fulfilled for whichever account you connect here.</p><ul class="trust" style="margin:16px 0"><li>We only receive your Roblox username, display name and user ID</li><li>Your Roblox password is never requested, seen, or stored by us</li><li>Nothing is shared until you complete Roblox's own sign-in page</li></ul><div id="identityArea"></div><div class="error" id="error" role="alert"></div><button class="btn blue" style="width:100%" id="robloxAction">Connect with Roblox</button></section></main>${footer()}<div class="modal" id="modal"></div>`;nav();
+<p class="kicker"><span class="dot"></span>Secure checkout</p><h1>Connect Your Roblox Identity</h1><p>Before you can confirm an order, sign in with Roblox directly. This order will be fulfilled for whichever account you connect here.</p><ul class="trust" style="margin:16px 0"><li>We receive your Roblox username, display name, user ID and public profile details — never your password</li><li>Roblox doesn't share an email address with us, so this identity is what appears on your order and receipt</li><li>Nothing is shared until you complete Roblox's own sign-in page</li></ul><div id="identityArea"></div><div class="error" id="error" role="alert"></div><button class="btn blue" style="width:100%" id="robloxAction">Connect with Roblox</button></section></main>${footer()}<div class="modal" id="modal"></div>`;nav();
   const action=$('#robloxAction');
-  if(state.session.roblox){$('#identityArea').innerHTML=`<div class="identity"><b>${esc(state.session.roblox.displayName)}</b>@${esc(state.session.roblox.username)}<br><span>This is the account we'll fulfil your order on. Not the right account? Use “Change account” below — reconnecting isn't available mid-review.</span></div><button type="button" class="btn ghost" id="changeAccount" style="width:100%;margin-bottom:12px">Change account</button>`;action.textContent='Review and confirm order';action.onclick=()=>reviewOrder(saved);
+  if(state.session.roblox){$('#identityArea').innerHTML=`<div class="identity"><b>${esc(state.session.roblox.displayName)}</b>@${esc(state.session.roblox.username)}<br><span>This is the account we'll fulfil your order on. Not the right account? Use “Change account” below — reconnecting isn't available mid-review.</span>${robloxDetailGrid(state.session.roblox)}</div><button type="button" class="btn ghost" id="changeAccount" style="width:100%;margin-bottom:12px">Change account</button>`;action.textContent='Review and confirm order';action.onclick=()=>reviewOrder(saved);
     const change=$('#changeAccount');if(change)change.onclick=async()=>{change.disabled=true;change.textContent='Disconnecting…';try{await api('/api/roblox/disconnect',{method:'POST'})}catch{}location.href='/api/roblox/start'}}
   else{action.onclick=()=>{if(!state.session.configured.roblox)return toast('Roblox integration has not been configured yet.');location.href='/api/roblox/start'}}
 }
@@ -586,7 +613,18 @@ function reviewOrder(saved){
       const r=await api('/api/orders',{method:'POST',body:JSON.stringify({...saved,notes})});
       sessionStorage.removeItem('k3order');sessionStorage.removeItem(cartKey(saved.game,'inr'));
       localOrders.push({id:r.order.id,type:'order',game:saved.game,items:found.map(i=>({name:i.name,quantity:i.quantity})),total:r.order.total,express:saved.express,status:'Order received',createdAt:new Date().toISOString()});
-      modal.innerHTML=`<section class="modal-card panel"><p class="kicker"><span class="dot"></span>Order received</p><h2>Thank you — ${esc(r.order.id)}</h2><p>Your order total is ${money(r.order.total)}. This is your reference number — save it for any follow-up.</p><div class="status-pill" style="margin-top:12px">${ico('check')} Order received</div><p style="color:var(--muted);font-size:13.5px;margin-top:14px">What happens next: your order has been recorded and queued internally against your connected Roblox account. This order is not yet complete — we'll be in touch to confirm fulfilment. Quote your reference number if you contact support.</p><div class="cta-row" style="justify-content:flex-start;margin-top:18px"><a class="btn blue" href="/inr.html">Back to catalogue</a><a class="btn ghost" href="/account.html?tab=orders">View in Your account</a></div></section>`;
+      modal.innerHTML=`<section class="modal-card panel"><p class="kicker"><span class="dot"></span>Order received</p><h2>Thank you — ${esc(r.order.id)}</h2><p>Your order total is ${money(r.order.total)}. This is your reference number — save it for any follow-up.</p><div class="status-pill" style="margin-top:12px">${ico('check')} Order received</div><p style="color:var(--muted);font-size:13.5px;margin-top:14px">What happens next: your order has been recorded and queued internally against your connected Roblox account. This order is not yet complete — we'll be in touch to confirm fulfilment. Quote your reference number if you contact support.</p>
+<div class="receipt-block"><h4>Order receipt</h4><dl>
+<dt>Reference</dt><dd>${esc(r.order.id)}</dd>
+<dt>Game</dt><dd>${saved.game==='blox'?'Blox Fruits':'Grow a Garden'}</dd>
+<dt>Items</dt><dd>${found.map(i=>`${esc(i.name)} ×${i.quantity}`).join(', ')}</dd>
+<dt>Express Service</dt><dd>${saved.express?'Applied':'Not applied'}</dd>
+<dt>Total</dt><dd>${money(r.order.total)}</dd>
+<dt>Fulfilled to</dt><dd>${esc(state.session.roblox.displayName)} (@${esc(state.session.roblox.username)})</dd>
+<dt>Roblox user ID</dt><dd>${esc(state.session.roblox.userId||'—')}</dd>
+<dt>Submitted</dt><dd>${new Date().toLocaleString()}</dd>
+</dl></div>
+<div class="cta-row" style="justify-content:flex-start;margin-top:18px"><a class="btn blue" href="/inr.html">Back to catalogue</a><a class="btn ghost" href="/account.html?tab=orders">View in Your account</a></div></section>`;
     }catch(e){err.textContent=e.message;b.disabled=false;b.textContent='Submit secure order'}
   };
 }
@@ -634,7 +672,7 @@ function renderAccountRoblox(){
   panel.innerHTML=`<div class="panel" style="padding:24px">
   <h2 style="font-size:17px;margin-bottom:6px">Roblox connection</h2>
   <p style="color:var(--muted);font-size:13.5px;margin-bottom:16px">We use Roblox's own sign-in to confirm which account your services are fulfilled on. We only ever receive your username, display name and Roblox user ID — never your password.</p>
-  ${state.session.roblox?`<div class="roblox-card"><div class="roblox-avatar">${esc(state.session.roblox.displayName.slice(0,1).toUpperCase())}</div><div class="rc-info"><b>${esc(state.session.roblox.displayName)}</b><span>@${esc(state.session.roblox.username)} · this account will be used for any new order</span></div><div class="rc-actions"><button class="btn ghost" id="reconnectBtn">Change account</button></div></div>`
+  ${state.session.roblox?`<div class="roblox-card"><div class="roblox-avatar">${esc(state.session.roblox.displayName.slice(0,1).toUpperCase())}</div><div class="rc-info"><b>${esc(state.session.roblox.displayName)}</b><span>@${esc(state.session.roblox.username)} · this account will be used for any new order</span></div><div class="rc-actions"><button class="btn ghost" id="reconnectBtn">Change account</button></div></div>${robloxDetailGrid(state.session.roblox)}`
   :`<div class="local-note">${ico('info')}<span>${state.session.configured.roblox?'No account connected right now. Connecting happens automatically during checkout, or you can connect ahead of time below.':'Roblox authentication hasn\u2019t been configured on this deployment yet.'}</span></div>${state.session.configured.roblox?`<button class="btn blue" id="connectBtn" style="margin-top:14px">Connect Roblox account</button>`:''}`}
   </div>`;
   const reconnect=$('#reconnectBtn');if(reconnect)reconnect.onclick=async()=>{reconnect.disabled=true;reconnect.textContent='Disconnecting…';try{await api('/api/roblox/disconnect',{method:'POST'})}catch{}location.href='/api/roblox/start'};
@@ -670,7 +708,7 @@ async function renderAccountOrders(){
 /* ---------- support / policies ---------- */
 function renderSupport(){
   document.body.className='';
-  document.body.innerHTML=`${header()}<main id="main"><section class="catalog-hero wrap"><p class="kicker"><span class="dot"></span>Help center</p><h1>Support &amp; policies</h1><p>Everything about how ordering, fulfilment, cancellations and support work.</p></section><section class="wrap section" style="padding-top:0;max-width:820px">
+  document.body.innerHTML=`${header()}<main id="main"><section class="catalog-hero wrap"><p class="kicker"><span class="dot"></span>Help center</p><h1>Support &amp; Policies</h1><p>Everything about how ordering, fulfilment, cancellations and support work.</p></section><section class="wrap section" style="padding-top:0;max-width:820px">
   <div class="policy-toc">
     <a href="#requirements">Requirements</a><a href="#pricing">Pricing &amp; payment</a><a href="#fulfilment">Fulfilment time</a><a href="#cancellation">Cancellation &amp; refunds</a><a href="#prohibited">Prohibited requests</a><a href="#contact">Contact support</a>
   </div>
@@ -726,7 +764,7 @@ function renderSupport(){
   };
 }
 
-async function renderCatalog(game,market){await initSession();if(market==='inr'&&!state.session.inr){location.href='/inr-login.html?next='+encodeURIComponent(`/inr-${game==='blox'?'blox-fruits':'grow-a-garden'}.html`);return}state.game=game;state.market=market;try{const data=await api(`/api/catalog?game=${game}&market=${market||'global'}`);state.catalog=data.items;state.expressSurcharge=data.expressSurcharge||0;hydrateCart();await ensureReviewSummary(game);catalogMarkup()}catch(e){document.body.className='';document.body.innerHTML=`${header()}<main class="auth-page"><section class="auth-card panel"><h1>Catalogue unavailable</h1><p>${esc(e.message)}</p><a class="btn blue" href="/">Back home</a></section></main>`;nav()}}
+async function renderCatalog(game,market){await initSession();if(market==='inr'&&!state.session.inr){location.href='/inr-login.html?next='+encodeURIComponent(`/inr-${game==='blox'?'blox-fruits':'grow-a-garden'}.html`);return}state.game=game;state.market=market;try{const data=await api(`/api/catalog?game=${game}&market=${market||'global'}`);state.catalog=data.items;state.expressSurcharge=data.expressSurcharge||0;hydrateCart();await ensureReviewSummary(game);catalogMarkup()}catch(e){document.body.className='';document.body.innerHTML=`${header()}<main class="auth-page"><section class="auth-card panel"><h1>Catalogue Unavailable</h1><p>${esc(e.message)}</p><a class="btn blue" href="/">Back home</a></section></main>`;nav()}}
 
 async function boot(){
   const path=location.pathname;
