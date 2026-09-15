@@ -15,7 +15,12 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;min-width:320px;overflow-x:hidden;color:var(--text);background:var(--bg);font:15px Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+<<<<<<< HEAD
 /* One consistent visual identity everywhere (old_index blue/cyan) — no per-game or per-category re-theming. */
+=======
+body.garden{--accent:var(--garden);--accent2:var(--garden2)}
+body.bloxfruits{--accent:var(--bf);--accent2:var(--bf2)}
+>>>>>>> 405281bb12e82d3f478166c8643f30073f31ff96
 body:before{content:"";position:fixed;inset:0;z-index:-3;background:
   radial-gradient(circle at 80% 4%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 40%),
   radial-gradient(circle at 14% 62%,color-mix(in srgb,var(--accent2) 12%,transparent),transparent 45%),
@@ -200,9 +205,12 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .service-card .icon{width:52px;height:52px;border-radius:13px;background:linear-gradient(155deg,color-mix(in srgb,var(--accent) 30%,var(--panel-solid)),var(--panel-solid));box-shadow:inset 0 0 0 1px var(--line-strong)}
 .service-card .icon svg{width:24px;height:24px}
 .service-card footer{margin-top:auto;padding-top:18px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+<<<<<<< HEAD
 .service-card p.eta{display:flex;align-items:center;gap:6px;margin-top:8px;color:var(--muted2);font-size:11.5px;font-weight:600}
 .service-card p.eta svg{width:13px;height:13px;stroke:var(--muted2);flex:none}
 .fr-name .fr-eta{color:var(--muted2);font-size:11px;font-weight:600;font-style:normal}
+=======
+>>>>>>> 405281bb12e82d3f478166c8643f30073f31ff96
 .price{font-weight:800;color:var(--accent2);font-variant-numeric:tabular-nums}
 .price.request{font-size:12.5px;color:var(--muted);font-weight:600}
 
