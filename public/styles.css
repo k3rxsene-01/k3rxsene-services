@@ -10,6 +10,12 @@
   --line:rgba(160,190,255,.14);--line-strong:rgba(160,190,255,.28);
   --text:#eef1fb;--muted:#8b93b3;--muted2:#666f90;
   --ease:cubic-bezier(.16,.84,.44,1);--spring:cubic-bezier(.34,1.56,.64,1);
+  /* Spacing scale — new components should reach for these instead of a bespoke
+     pixel value. Existing rules are being migrated over incrementally rather
+     than in one risky pass across 40KB of CSS. */
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;
+  --space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;
+  --touch-min:44px;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -230,6 +236,11 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .qty-stepper.sm .qty-btn{width:26px;height:26px;font-size:14px}
 .qty-btn:hover{background:color-mix(in srgb,var(--accent2) 14%,transparent)}
 .qty-num{min-width:22px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums;font-size:13.5px}
+/* Below ~480px, a 26px tap target is genuinely too small to hit reliably —
+   grow the small stepper back up to the accessible minimum on touch-sized screens. */
+@media(max-width:480px){
+  .qty-stepper.sm .qty-btn{width:var(--touch-min);height:38px}
+}
 
 /* cart */
 .cart{position:sticky;top:92px;padding:22px}
@@ -240,7 +251,7 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .cart-line{display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:13px}
 .cl-icon{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--panel-solid);border:1px solid var(--line-strong);flex:none}
 .cl-icon svg{width:15px;height:15px;stroke:var(--accent2)}
-.cl-info{min-width:0;color:var(--text)}
+.cl-info{min-width:0;color:var(--text);overflow-wrap:anywhere}
 .cart-line small{display:block;color:var(--muted);margin-top:3px}
 .cart-line-right{display:flex;align-items:center;gap:10px;justify-self:end}
 .cart-remove{border:0;background:none;color:var(--muted);padding:1px 0;font-size:16px;line-height:1;transition:color .2s}
@@ -249,8 +260,10 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .cart-summary div{display:flex;justify-content:space-between;margin:8px 0}
 .cart-summary strong{color:var(--text);font-size:15px}
 .express{margin:17px 0;padding:12px;border:1px solid color-mix(in srgb,var(--amber) 35%,var(--line));border-radius:11px;background:color-mix(in srgb,var(--amber) 6%,var(--panel));font-size:12px}
-.express label{display:flex;gap:9px;align-items:flex-start;color:var(--text);font-weight:700}
-.express span{color:var(--muted);display:block;margin:6px 0 0 25px}
+.express label{display:grid;grid-template-columns:auto 1fr;gap:9px;align-items:start;color:var(--text);font-weight:700}
+.express label input{margin-top:2px}
+.express label span{grid-column:2}
+.express>span{display:block;color:var(--muted);margin-top:8px}
 .notice{padding:16px 18px;border:1px solid var(--line-strong);border-radius:13px;background:var(--panel);color:var(--muted);font-size:13px;line-height:1.6}
 .notice strong{color:var(--text)}
 
@@ -277,7 +290,8 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .modal{position:fixed;inset:0;z-index:300;display:none;place-items:center;padding:20px;background:rgba(2,4,10,.72);backdrop-filter:blur(8px)}
 .modal.show{display:grid}
 .modal-card{position:relative;width:min(560px,100%);max-height:min(720px,calc(100vh - 40px));overflow:auto;padding:28px}
-.modal-close{position:absolute;right:15px;top:12px;border:0;background:none;color:var(--muted);font-size:25px}
+.modal-close{position:absolute;right:15px;top:12px;border:0;background:none;color:var(--muted);font-size:25px;border-radius:8px;line-height:1;padding:2px 8px}
+.modal-close:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
 .modal-card h2{font-size:24px}
 .modal-card .cart-line{font-size:14px}
 
@@ -356,10 +370,13 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .filter-count{margin-left:auto;font-size:12px;color:var(--muted2);font-weight:600}
 .filter-reset{font-size:12px;color:var(--accent2);font-weight:700}
 .filter-drawer-toggle{display:none}
+.filter-drawer-close{display:none}
 @media(max-width:820px){
   .filter-bar{display:none}
-  .filter-bar.open{display:flex;position:fixed;inset:auto 0 0 0;z-index:260;border-radius:18px 18px 0 0;max-height:75vh;overflow:auto;box-shadow:0 -14px 40px rgba(0,0,0,.5)}
+  .filter-bar.open{display:flex;position:fixed;inset:auto 0 0 0;z-index:260;border-radius:18px 18px 0 0;max-height:75vh;overflow:auto;box-shadow:0 -14px 40px rgba(0,0,0,.5);padding-top:44px}
   .filter-drawer-toggle{display:inline-flex}
+  .filter-drawer-close{display:grid;place-items:center;position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:9px;border:1px solid var(--line-strong);background:var(--panel-solid);color:var(--muted)}
+  .filter-drawer-close svg{width:15px;height:15px}
   .filter-drawer-backdrop{position:fixed;inset:0;z-index:255;background:rgba(2,4,10,.6);display:none}
   .filter-drawer-backdrop.open{display:block}
 }
@@ -515,6 +532,8 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 
 /* support ticket form */
 .ticket-form{display:grid;gap:14px}
+.ticket-form-2col{grid-template-columns:1fr 1fr}
+@media(max-width:600px){.ticket-form-2col{grid-template-columns:1fr}}
 .ticket-form textarea{width:100%;border:1px solid var(--line-strong);border-radius:10px;background:#080d1c;color:var(--text);padding:11px;font:inherit;resize:vertical;min-height:80px}
 .ticket-form select{width:100%;border:1px solid var(--line-strong);background:#080d1c;color:var(--text);border-radius:10px;padding:11px;font-size:13.5px}
 .ticket-status{display:flex;align-items:center;gap:10px;margin-top:8px}
