@@ -1,6 +1,9 @@
 const $ = (s, p=document) => p.querySelector(s);
 const $$ = (s, p=document) => [...p.querySelectorAll(s)];
-const state = { session:null, items:[], catalog:[], game:null, market:null, express:false, filters:{category:'all',sort:'popular',price:'all',avail:'all',q:''}, searchIndex:null };
+const state = { session:null, items:[], catalog:[], game:null, market:null, express:false, filters:{category:'all',sort:'popular',price:'all',avail:'all',q:''}, searchIndex:null, reviewSummary:{} };
+async function ensureReviewSummary(game){ if(state.reviewSummary[game])return state.reviewSummary[game]; try{const r=await api(`/api/reviews/summary?game=${game}`); state.reviewSummary[game]=r.summary}catch{state.reviewSummary[game]={}} return state.reviewSummary[game]}
+function starIcon(filled){return `<svg viewBox="0 0 24 24" class="${filled?'':'empty'}"><path d="M12 2.5l2.9 6.6 7.1.7-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.8l7.1-.7z"/></svg>`}
+function ratingRowHtml(game,id){const s=(state.reviewSummary[game]||{})[id];if(!s||!s.count)return'';const full=Math.round(s.avg);return `<div class="rating-row"><span class="rating-stars">${[1,2,3,4,5].map(n=>starIcon(n<=full)).join('')}</span><b>${s.avg.toFixed(1)}</b><span class="rating-count">(${s.count} review${s.count===1?'':'s'})</span></div>`}
 const GAME_META = { blox:{name:'Blox Fruits', img:'/bloxfruits.png'}, garden:{name:'Grow a Garden', img:'/growagarden.png'} };
 const gameNames = { blox:GAME_META.blox.name, garden:GAME_META.garden.name };
 const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -403,8 +406,8 @@ function filterBarMarkup(){
 
 /* ---------- catalogue pages (public + inr) ---------- */
 function catalogMarkup(){
-  const isInr=state.market==='inr';const heading=isInr?'Your catalogue':`${gameNames[state.game]} services`;const theme=state.game==='garden'?'garden':state.game==='blox'?'bloxfruits':'';
-  document.body.className=theme;
+  const isInr=state.market==='inr';const heading=isInr?'Your catalogue':`${gameNames[state.game]} services`;
+  document.body.className='';
   document.body.innerHTML=`${header(isInr?'':'games')}${breadcrumbs([{label:'Home',href:'/'},{label:gameNames[state.game],href:isInr?'':`/${state.game==='blox'?'blox-fruits':'grow-a-garden'}.html`}])}<main id="main"><section class="catalog-hero wrap"><p class="kicker"><span class="dot"></span>${isInr?'Private access':gameNames[state.game]}</p><h1>${heading}</h1><p>${isInr?'Your approved catalogue. Add services to your cart; every price and total is verified by the server at submission.':'Browse the catalogue, build a cart, and request a rate — every service page explains exactly what\u2019s included.'}</p><button type="button" class="btn ghost filter-drawer-toggle" id="filterToggle">${ico('search')} Filters &amp; sort<span id="filterToggleCount"></span></button></section><section class="wrap catalog-layout"><div><div class="notice" style="margin-bottom:16px"><strong>${state.game==='garden'?'Availability matters.':'Service scope matters.'}</strong> ${state.game==='garden'?'Grow a Garden market items are availability-based; an item marked “Price on request” cannot be checked out until a rate is agreed.':'Some services have account-specific scope; open a service for the full included / not-included breakdown.'}</div>${filterBarMarkup()}<p class="filter-count" id="resultCount" style="margin:0 0 14px"></p><div id="serviceGrid"></div></div><aside class="cart panel" id="cartAside"><h2>${isInr?'Your cart':'Your rate request'} <span class="cart-badge" id="cartBadge">0</span></h2><ul class="cart-items" id="cartItems"></ul>${isInr?`<div class="cart-summary"><div><span>Subtotal</span><b id="subtotal">₹0</b></div><div><span id="expressLabel">Express Service: Not applied</span><b id="expressPrice">—</b></div><div><strong>Total</strong><strong id="total">₹0</strong></div></div><div class="express"><label><input type="checkbox" id="express"> <span>Add Express Service <small>(+₹${state.expressSurcharge})</small></span></label><span>One priority surcharge per order. It is never multiplied by service.</span></div><button class="btn blue" style="width:100%" id="checkout">Continue to Roblox login</button>`:`<div class="field"><label for="quoteEmail">Contact email</label><input id="quoteEmail" type="email" required placeholder="you@example.com"></div><div class="field"><label for="quoteNotes">Notes (optional)</label><input id="quoteNotes" maxlength="400" placeholder="Any details we should know"></div><div class="error" id="quoteError"></div><button class="btn blue" style="width:100%" id="requestQuote">Send rate request</button>`}</aside></section></main>${footer()}<div class="modal" id="modal"></div><button class="cart-fab" id="cartFab" aria-label="Go to cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.6 12.6a2 2 0 0 0 2 1.6h8a2 2 0 0 0 2-1.6L21 7H6"/></svg><span class="cart-fab-badge" id="cartFabBadge">0</span></button>`;
   bindServiceEvents();bindCartEvents();bindFilterEvents();renderServices();renderCart();nav();
   $('#cartFab').onclick=()=>$('#cartAside').scrollIntoView({behavior:prefersReduced?'auto':'smooth',block:'start'});
@@ -429,7 +432,7 @@ function categoryBlockHtml(g){
   if(g.table){
     return `<div class="cat-block"><div class="cat-head"><h3>${g.label}</h3><span class="cat-count">${g.items.length} items</span></div><div class="fruit-card panel">${g.items.map(item=>`<div class="fruit-row"><span class="fr-name"><a href="/service.html?game=${state.game}&id=${item.id}" style="color:inherit">${esc(item.name)}</a>${item.tag?`<em class="fr-tag">${esc(item.tag)}</em>`:''}${item.eta?`<small class="fr-eta">Est. ${esc(item.eta)}</small>`:''}</span><span class="fr-price ${item.price==null?'request':''}">${money(item.price)}</span>${wishBtnMarkup(state.game,item.id,item.name,item.tag,item.eta)}<span class="fr-action">${stepper(item.id,'sm')}</span></div>`).join('')}</div></div>`;
   }
-  return `<div class="cat-block"><div class="cat-head"><h3>${g.label}</h3><span class="cat-count">${g.items.length} items</span></div><div class="service-grid">${g.items.map(item=>`<article class="service-card">${wishBtnMarkup(state.game,item.id,item.name,item.tag,item.eta)}<div class="top-row"><span class="icon">${svgIcon(item.id)}</span><span class="tag">${item.tag||'Service'}${item.featured?' · Popular':''}</span></div><h3><a href="/service.html?game=${state.game}&id=${item.id}" style="color:inherit">${esc(item.name)}</a></h3><p>${esc(item.description)}</p>${item.eta?`<p class="eta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Est. ${esc(item.eta)}</p>`:''}<footer><span class="price ${item.price==null?'request':''}">${money(item.price)}</span>${stepper(item.id)}</footer></article>`).join('')}</div></div>`;
+  return `<div class="cat-block"><div class="cat-head"><h3>${g.label}</h3><span class="cat-count">${g.items.length} items</span></div><div class="service-grid">${g.items.map(item=>`<article class="service-card">${wishBtnMarkup(state.game,item.id,item.name,item.tag,item.eta)}<div class="top-row"><span class="icon">${svgIcon(item.id)}</span><span class="tag">${item.tag||'Service'}${item.featured?' · Popular':''}</span></div><h3><a href="/service.html?game=${state.game}&id=${item.id}" style="color:inherit">${esc(item.name)}</a></h3><p>${esc(item.description)}</p>${ratingRowHtml(state.game,item.id)}${item.eta?`<p class="eta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Est. ${esc(item.eta)}</p>`:''}<footer><span class="price ${item.price==null?'request':''}">${money(item.price)}</span>${stepper(item.id)}</footer></article>`).join('')}</div></div>`;
 }
 function renderServices(){
   const grid=$('#serviceGrid');if(!grid)return;
@@ -461,7 +464,7 @@ async function renderServiceDetail(){
   const params=new URLSearchParams(location.search);
   const game=params.get('game');const id=params.get('id');
   if(!GAME_META[game]){return renderNotFound('That experience could not be found.')}
-  document.body.className=game==='garden'?'garden':'bloxfruits';
+  document.body.className='';
   document.body.innerHTML=`${header()}<main id="main"><div class="wrap" style="padding-top:22px" id="detailRoot"><p>Loading service…</p></div></main>${footer()}`;
   nav();
   let data;
@@ -469,6 +472,8 @@ async function renderServiceDetail(){
   const item=data.item;
   state.game=game;state.market=state.session.inr?'inr':'public';state.expressSurcharge=data.expressSurcharge||0;
   try{const full=await api(`/api/catalog?game=${game}&market=${state.market==='inr'?'inr':'global'}`);state.catalog=full.items}catch{state.catalog=[item]}
+  await ensureReviewSummary(game);
+  let reviews=[];try{const rv=await api(`/api/reviews?game=${game}&id=${encodeURIComponent(id)}`);reviews=rv.reviews}catch{reviews=[]}
   hydrateCart();
   recentlyViewed.push({game,id:item.id,name:item.name,tag:item.tag,eta:item.eta});
   const isInr=state.market==='inr';
@@ -479,7 +484,7 @@ async function renderServiceDetail(){
   document.title=`${item.name} · ${gameNames[game]} · k3rxsene's Services`;
   document.body.innerHTML=`${header()}${breadcrumbs([{label:'Home',href:'/'},{label:gameNames[game],href:`/${game==='blox'?'blox-fruits':'grow-a-garden'}.html`},{label:item.name,href:'#'}])}
 <main id="main"><div class="wrap">
-<div class="detail-hero"><img src="${GAME_META[game].img}" alt=""><div><p class="kicker"><span class="dot"></span>${esc(catLabel)}${item.featured?' · Bestseller':''}</p><h1 style="font-size:clamp(26px,4vw,40px)">${esc(item.name)}</h1><p style="color:var(--muted);max-width:560px;margin-top:8px">${esc(item.description)}</p></div></div>
+<div class="detail-hero"><img src="${GAME_META[game].img}" alt=""><div><p class="kicker"><span class="dot"></span>${esc(catLabel)}${item.featured?' · Bestseller':''}</p><h1 style="font-size:clamp(26px,4vw,40px)">${esc(item.name)}</h1><p style="color:var(--muted);max-width:560px;margin-top:8px">${esc(item.description)}</p>${ratingRowHtml(game,item.id)}</div></div>
 <div class="detail-layout">
   <div class="detail-main">
     <div class="panel"><h2>What's included</h2><div class="included-grid"><div class="yes"><h3>${ico('check')} Included</h3><ul>${scope.included.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div><div class="no"><h3>${ico('x')} Not included</h3><ul>${scope.excluded.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div></div></div>
@@ -487,6 +492,16 @@ async function renderServiceDetail(){
     <div class="panel"><h2>Fulfilment process</h2><ol style="color:var(--muted);font-size:13.5px;line-height:1.9;padding-left:20px;margin:0"><li>Your order is recorded with an exact, server-verified price and queued internally.</li><li>Work begins on the Roblox account you connected at checkout.</li><li>${isConstrained(item.tag)?'For availability-based items, stock is confirmed first — we\u2019ll contact you if anything changes.':'Most orders begin the same day, subject to queue volume.'}</li><li>You'll be notified when the service is complete. Keep your order reference for any support request.</li></ol></div>
     ${related.length?`<div class="panel"><h2>Related services in ${esc(catLabel)}</h2><div class="related-strip">${related.map(r=>`<article class="service-card" style="min-height:auto"><div class="top-row"><span class="icon">${svgIcon(r.id)}</span><span class="tag">${r.tag||'Service'}</span></div><h3 style="font-size:15px"><a href="/service.html?game=${game}&id=${r.id}" style="color:inherit">${esc(r.name)}</a></h3><footer style="margin-top:10px"><span class="price ${r.price==null?'request':''}">${money(r.price)}</span><a class="btn ghost sm" href="/service.html?game=${game}&id=${r.id}">View</a></footer></article>`).join('')}</div></div>`:''}
     ${recent.length?`<div class="panel"><h2>Recently viewed</h2><div class="related-strip">${recent.map(r=>`<article class="service-card" style="min-height:auto"><div class="top-row"><span class="icon">${svgIcon(r.id)}</span></div><h3 style="font-size:15px"><a href="/service.html?game=${r.game}&id=${r.id}" style="color:inherit">${esc(r.name)}</a></h3></article>`).join('')}</div></div>`:''}
+    <div class="panel"><h2>Customer reviews</h2>${ratingRowHtml(game,item.id)||'<p style="color:var(--muted);font-size:13.5px;margin-bottom:14px">No reviews yet for this service — be the first to complete an order and leave one.</p>'}
+      <div id="reviewList">${reviews.length?reviews.map(r=>`<div class="review-card"><div class="rv-top"><span class="rating-stars">${[1,2,3,4,5].map(n=>starIcon(n<=r.rating)).join('')}</span><span style="color:var(--muted2)">${esc(r.displayName||'Verified customer')} · <span style="color:var(--accent2);font-weight:700">Order-verified</span></span></div>${r.text?`<p>${esc(r.text)}</p>`:''}</div>`).join(''):''}</div>
+      <div class="review-form"><h3 style="font-size:14.5px;margin-bottom:6px">Leave a review</h3><p style="color:var(--muted);font-size:12.5px;margin-bottom:10px">Only customers with a completed order for this service can review it. Enter your order reference (e.g. K3-XXXXXXXX) to verify.</p>
+        <div class="field"><label for="rvOrder">Order reference</label><input id="rvOrder" placeholder="K3-XXXXXXXX"></div>
+        <div class="stars-input" id="rvStars">${[1,2,3,4,5].map(n=>`<button type="button" data-star="${n}" aria-label="${n} star${n===1?'':'s'}">${starIcon(false)}</button>`).join('')}</div>
+        <div class="field"><label for="rvText">Your review (optional)</label><input id="rvText" maxlength="500" placeholder="How did the order go?"></div>
+        <div class="error" id="rvError"></div>
+        <button class="btn blue" id="rvSubmit" type="button">Submit review</button>
+      </div>
+    </div>
   </div>
   <aside class="buy-box panel">
     <div class="price-row"><b>${money(item.price)}</b>${wishBtnMarkup(game,item.id,item.name,item.tag,item.eta)}</div>
@@ -506,6 +521,24 @@ async function renderServiceDetail(){
   bindDetailStepperEvents();
   const buyNow=$('#buyNow');if(buyNow)buyNow.onclick=()=>{if(!state.items.find(i=>i.id===item.id))addItem(item.id);refreshStepper();checkout()};
   const addQuote=$('#addQuote');if(addQuote)addQuote.onclick=()=>{if(!state.items.find(i=>i.id===item.id))addItem(item.id);refreshStepper();toast(`${item.name} added to your rate request.`)};
+  let chosenStars=0;
+  const starsWrap=$('#rvStars');
+  starsWrap.addEventListener('click',e=>{const b=e.target.closest('[data-star]');if(!b)return;chosenStars=Number(b.dataset.star);$$('button',starsWrap).forEach(btn=>{const n=Number(btn.dataset.star);btn.classList.toggle('active',n<=chosenStars);btn.innerHTML=starIcon(n<=chosenStars)})});
+  $('#rvSubmit').onclick=async()=>{
+    const errEl=$('#rvError');errEl.textContent='';
+    const orderId=$('#rvOrder').value.trim().toUpperCase();
+    if(!orderId)return errEl.textContent='Enter the order reference this review is for.';
+    if(!chosenStars)return errEl.textContent='Choose a star rating.';
+    const btn=$('#rvSubmit');btn.disabled=true;btn.textContent='Submitting…';
+    try{
+      await api('/api/reviews',{method:'POST',body:JSON.stringify({orderId,serviceId:item.id,rating:chosenStars,text:$('#rvText').value,public:true})});
+      toast('Thanks — your review has been posted.');
+      const rv=await api(`/api/reviews?game=${game}&id=${encodeURIComponent(id)}`);
+      state.reviewSummary[game]=null;await ensureReviewSummary(game);
+      $('#reviewList').innerHTML=rv.reviews.map(r=>`<div class="review-card"><div class="rv-top"><span class="rating-stars">${[1,2,3,4,5].map(n=>starIcon(n<=r.rating)).join('')}</span><span style="color:var(--muted2)">${esc(r.displayName||'Verified customer')} · <span style="color:var(--accent2);font-weight:700">Order-verified</span></span></div>${r.text?`<p>${esc(r.text)}</p>`:''}</div>`).join('');
+      $('#rvOrder').value='';$('#rvText').value='';chosenStars=0;$$('button',starsWrap).forEach(btn2=>{btn2.classList.remove('active');btn2.innerHTML=starIcon(false)});
+    }catch(e){errEl.textContent=e.message}finally{btn.disabled=false;btn.textContent='Submit review'}
+  };
 }
 function renderNotFound(message){
   document.body.className='';
@@ -612,11 +645,26 @@ function renderAccountWishlist(){
   const list=wishlist.all();
   panel.innerHTML=`<div class="panel" style="padding:24px"><h2 style="font-size:17px;margin-bottom:14px">Wishlist</h2>${list.length?`<div class="wl-grid">${list.map(w=>`<article class="service-card" style="min-height:auto">${wishBtnMarkup(w.game,w.id,w.name,w.tag,w.eta)}<div class="top-row"><span class="icon">${svgIcon(w.id)}</span><span class="tag">${gameNames[w.game]}</span></div><h3 style="font-size:15px"><a href="/service.html?game=${w.game}&id=${w.id}" style="color:inherit">${esc(w.name)}</a></h3>${w.eta?`<p class="eta">${ico('clock')} Est. ${esc(w.eta)}</p>`:''}<footer><a class="btn ghost sm" href="/service.html?game=${w.game}&id=${w.id}">View service</a></footer></article>`).join('')}</div>`:`<div class="empty-state">${ico('heart')}<h3>Your wishlist is empty</h3><p>Tap the heart on any service to save it here for later.</p><a class="btn blue" href="/#games">Browse services</a></div>`}</div>`;
 }
-function renderAccountOrders(){
+const ORDER_STAGES=[['received','Received'],['in_progress','In progress'],['completed','Completed']];
+function orderTrackerHtml(status){
+  if(status==='cancelled'||status==='refunded')return `<div class="status-pill quote">${ico('info')} ${status==='cancelled'?'Cancelled':'Refunded'}</div>`;
+  const idx=status==='needs_info'?0:ORDER_STAGES.findIndex(s=>s[0]===status);
+  return `<div class="order-tracker">${ORDER_STAGES.map((s,i)=>{const done=i<idx||(i===idx&&status!=='needs_info');const current=i===idx;return `${i>0?`<div class="ot-line"></div>`:''}<div class="ot-step ${done?'done':''} ${current?'current':''} ${status==='needs_info'&&i===idx?'needs_info':''}"><span class="ot-dot"></span><span>${s[1]}</span></div>`}).join('')}</div>${status==='needs_info'?`<p style="color:var(--amber);font-size:12px;margin-top:6px">${ico('info')} We need more information from you — check your email or contact support with this reference.</p>`:''}`;
+}
+async function renderAccountOrders(){
   const panel=$('[data-panel="orders"]');
-  const list=localOrders.all();
-  panel.innerHTML=`<div class="local-note">${ico('info')}<span>This is a local copy stored only on this device/browser for your reference — it is not a live tracker. We'll contact you directly with fulfilment updates; quote your order reference if you need support.</span></div>
-  ${list.length?list.map(o=>`<div class="order-card"><div class="oc-top"><div><b>${esc(o.id)}</b><small>${gameNames[o.game]||o.game} · ${new Date(o.createdAt).toLocaleString()}</small></div><span class="status-pill${o.type==='quote'?' quote':''}">${o.type==='quote'?ico('clock'):ico('check')} ${esc(o.status)}</span></div><div class="oc-lines">${o.items.map(i=>`<div><span>${esc(i.name)} ×${i.quantity}</span></div>`).join('')}</div><div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)"><span>${o.type==='quote'?'Rate to be confirmed by email':`${o.express?'Express applied · ':''}Total`}</span>${o.total?`<b style="color:var(--text)">${money(o.total)}</b>`:''}</div></div>`).join(''):`<div class="empty-state panel">${ico('clock')}<h3>No local orders yet</h3><p>Orders and rate requests you submit will appear here for your reference.</p><a class="btn blue" href="/#games">Browse services</a></div>`}`;
+  const localList=localOrders.all();
+  panel.innerHTML=`<div class="local-note">${ico('info')}<span>Orders placed while your Roblox account is connected show a live status pulled from our system. Rate requests and anything placed before connecting stay as a local, device-only reference.</span></div><div id="ordersBody"><p style="color:var(--muted);font-size:13px">Loading your orders…</p></div>`;
+  let serverOrders=[];
+  if(state.session.roblox){try{const r=await api('/api/orders/mine');serverOrders=r.orders}catch{}}
+  const serverIds=new Set(serverOrders.map(o=>o.id));
+  const localOnly=localList.filter(o=>!serverIds.has(o.id));
+  const body=$('#ordersBody');
+  if(!serverOrders.length && !localOnly.length){body.innerHTML=`<div class="empty-state panel">${ico('clock')}<h3>No orders yet</h3><p>Orders and rate requests you submit will appear here for your reference.</p><a class="btn blue" href="/#games">Browse services</a></div>`;return}
+  body.innerHTML=[
+    ...serverOrders.map(o=>`<div class="order-card"><div class="oc-top"><div><b>${esc(o.id)}</b><small>${gameNames[o.game]||o.game} · ${new Date(o.createdAt).toLocaleString()}</small></div><span class="status-pill">${ico('check')} ${esc(o.statusLabel)}</span></div>${orderTrackerHtml(o.status)}<div class="oc-lines">${o.items.map(i=>`<div><span>${esc(i.name)} ×${i.quantity}</span></div>`).join('')}</div><div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted);margin-top:8px"><span>${o.express?'Express applied · ':''}Total</span><b style="color:var(--text)">${money(o.total)}</b></div>${o.status==='completed'?`<div style="margin-top:10px"><a class="btn ghost sm" href="/service.html?game=${o.game}&id=${o.items[0].id}">Leave a review</a></div>`:''}</div>`),
+    ...localOnly.map(o=>`<div class="order-card"><div class="oc-top"><div><b>${esc(o.id)}</b><small>${gameNames[o.game]||o.game} · ${new Date(o.createdAt).toLocaleString()}</small></div><span class="status-pill${o.type==='quote'?' quote':''}">${o.type==='quote'?ico('clock'):ico('check')} ${esc(o.status)}</span></div><div class="oc-lines">${o.items.map(i=>`<div><span>${esc(i.name)} ×${i.quantity}</span></div>`).join('')}</div><div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)"><span>${o.type==='quote'?'Rate to be confirmed by email':`${o.express?'Express applied · ':''}Total`}</span>${o.total?`<b style="color:var(--text)">${money(o.total)}</b>`:''}</div></div>`)
+  ].join('');
 }
 
 /* ---------- support / policies ---------- */
@@ -631,13 +679,54 @@ function renderSupport(){
   <div class="policy-block" id="fulfilment"><h2>Estimated fulfilment time</h2><p>Each service page lists a typical completion window. These are estimates based on normal conditions and current queue volume, not guarantees — in-game events, maintenance, or high demand can extend them. We'll reach out if a specific order is going to take meaningfully longer than estimated.</p></div>
   <div class="policy-block" id="cancellation"><h2>Cancellation &amp; refund policy</h2><ul><li>You can request cancellation any time before work has started on your order by contacting support with your order reference.</li><li>Once work has begun, we'll assess cancellation requests case by case and refund any unstarted portion of a multi-part order.</li><li>Refunds for services that could not be completed due to an issue on our side are handled in full.</li><li>We don't refund for account status changes (e.g. a ban) that happen independently of the service we performed.</li></ul></div>
   <div class="policy-block" id="prohibited"><h2>Prohibited requests</h2><ul><li>We don't request or accept your Roblox account password under any circumstance.</li><li>We don't take on requests that require bypassing Roblox's own account-recovery process.</li><li>We reserve the right to decline any order that falls outside a clearly defined, in-experience service.</li></ul></div>
-  <div class="policy-block" id="contact"><h2>Contact support</h2><p>For order-specific questions, include your order reference (format <code>K3-XXXXXXXX</code> or <code>Q-XXXXXXXX</code>) so our team can find it quickly. You can also review a local copy of your recent orders any time from <a href="/account.html?tab=orders" style="color:var(--accent2)">Your account</a>.</p></div>
+  <div class="policy-block" id="contact"><h2>Contact support</h2><p>Submit a support or refund request below, referencing your order or rate-request ID (format <code>K3-XXXXXXXX</code> or <code>Q-XXXXXXXX</code>). You'll get a request reference back and can check its status any time using the lookup underneath. You can also review a local copy of your recent orders from <a href="/account.html?tab=orders" style="color:var(--accent2)">Your account</a>.</p>
+    <div class="panel" style="padding:22px;margin-top:16px">
+      <h3 style="font-size:15px;margin-bottom:12px">Submit a request</h3>
+      <div class="ticket-form">
+        <div class="field"><label for="tkRef">Order or rate-request reference</label><input id="tkRef" placeholder="K3-XXXXXXXX"></div>
+        <div class="field"><label for="tkEmail">Contact email</label><input id="tkEmail" type="email" placeholder="you@example.com"></div>
+        <div class="field"><label for="tkReason">Reason</label><select id="tkReason"><option value="order-issue">Order issue</option><option value="cancellation">Cancellation</option><option value="refund">Refund</option><option value="account-issue">Roblox account issue</option><option value="other">Other</option></select></div>
+        <div class="field"><label for="tkContext">Details</label><textarea id="tkContext" maxlength="800" placeholder="What's going on?"></textarea></div>
+        <div class="field"><label for="tkOutcome">Desired outcome (optional)</label><input id="tkOutcome" maxlength="300" placeholder="e.g. a refund, a status update"></div>
+        <div class="error" id="tkError"></div>
+        <div id="tkSuccess" style="display:none;color:#7ee2a8;font-size:13px"></div>
+        <button class="btn blue" id="tkSubmit" type="button" style="width:max-content">Send request</button>
+      </div>
+    </div>
+    <div class="panel" style="padding:22px;margin-top:16px">
+      <h3 style="font-size:15px;margin-bottom:12px">Check a request's status</h3>
+      <div class="ticket-form" style="grid-template-columns:1fr 1fr;display:grid">
+        <div class="field"><label for="tkLookupId">Request reference</label><input id="tkLookupId" placeholder="SR-XXXXXXXX"></div>
+        <div class="field"><label for="tkLookupEmail">Email used</label><input id="tkLookupEmail" type="email"></div>
+      </div>
+      <button class="btn ghost" id="tkLookupBtn" type="button">Check status</button>
+      <div id="tkLookupResult"></div>
+    </div>
+  </div>
   </section></main>${footer()}`;
   nav();
   if(location.hash){const el=document.querySelector(location.hash);if(el)setTimeout(()=>el.scrollIntoView({behavior:prefersReduced?'auto':'smooth',block:'start'}),50)}
+  $('#tkSubmit').onclick=async()=>{
+    const errEl=$('#tkError');const okEl=$('#tkSuccess');errEl.textContent='';okEl.style.display='none';
+    const btn=$('#tkSubmit');btn.disabled=true;btn.textContent='Sending…';
+    try{
+      const r=await api('/api/support',{method:'POST',body:JSON.stringify({reference:$('#tkRef').value.trim().toUpperCase(),email:$('#tkEmail').value.trim(),reason:$('#tkReason').value,context:$('#tkContext').value,desiredOutcome:$('#tkOutcome').value})});
+      okEl.style.display='block';okEl.textContent=`Request sent — reference ${r.id}. Save it to check status below.`;
+      $('#tkRef').value='';$('#tkContext').value='';$('#tkOutcome').value='';
+    }catch(e){errEl.textContent=e.message}finally{btn.disabled=false;btn.textContent='Send request'}
+  };
+  $('#tkLookupBtn').onclick=async()=>{
+    const out=$('#tkLookupResult');const id=$('#tkLookupId').value.trim().toUpperCase();const email=$('#tkLookupEmail').value.trim();
+    out.innerHTML='<p style="color:var(--muted);font-size:13px;margin-top:10px">Checking…</p>';
+    try{
+      const r=await api(`/api/support/lookup?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`);
+      const statusLabel={submitted:'Submitted',under_review:'Under review',resolved:'Resolved'}[r.ticket.status]||r.ticket.status;
+      out.innerHTML=`<div class="ticket-status"><span class="status-pill${r.ticket.status==='resolved'?'':' quote'}">${ico(r.ticket.status==='resolved'?'check':'clock')} ${esc(statusLabel)}</span><span style="color:var(--muted);font-size:12.5px">Reference ${esc(r.ticket.reference)} · Reason: ${esc(r.ticket.reason)}</span></div>${r.ticket.resolution?`<p style="color:var(--muted);font-size:13px;margin-top:8px">${esc(r.ticket.resolution)}</p>`:''}`;
+    }catch(e){out.innerHTML=`<p class="error" style="margin-top:10px">${esc(e.message)}</p>`}
+  };
 }
 
-async function renderCatalog(game,market){await initSession();if(market==='inr'&&!state.session.inr){location.href='/inr-login.html?next='+encodeURIComponent(`/inr-${game==='blox'?'blox-fruits':'grow-a-garden'}.html`);return}state.game=game;state.market=market;try{const data=await api(`/api/catalog?game=${game}&market=${market||'global'}`);state.catalog=data.items;state.expressSurcharge=data.expressSurcharge||0;hydrateCart();catalogMarkup()}catch(e){document.body.className='';document.body.innerHTML=`${header()}<main class="auth-page"><section class="auth-card panel"><h1>Catalogue unavailable</h1><p>${esc(e.message)}</p><a class="btn blue" href="/">Back home</a></section></main>`;nav()}}
+async function renderCatalog(game,market){await initSession();if(market==='inr'&&!state.session.inr){location.href='/inr-login.html?next='+encodeURIComponent(`/inr-${game==='blox'?'blox-fruits':'grow-a-garden'}.html`);return}state.game=game;state.market=market;try{const data=await api(`/api/catalog?game=${game}&market=${market||'global'}`);state.catalog=data.items;state.expressSurcharge=data.expressSurcharge||0;hydrateCart();await ensureReviewSummary(game);catalogMarkup()}catch(e){document.body.className='';document.body.innerHTML=`${header()}<main class="auth-page"><section class="auth-card panel"><h1>Catalogue unavailable</h1><p>${esc(e.message)}</p><a class="btn blue" href="/">Back home</a></section></main>`;nav()}}
 
 async function boot(){
   const path=location.pathname;

@@ -15,7 +15,26 @@ if (process.env.NODE_ENV === "production" && (!SECRET || SECRET.length < 32)) {
 const sessions = new Map();
 const loginAttempts = new Map();
 const quoteAttempts = new Map();
+const supportAttempts = new Map();
+const reviewAttempts = new Map();
 const now = () => Date.now();
+const STAFF_TOKEN = process.env.STAFF_TOKEN || '';
+
+// ---------- tiny JSON-file datastore (orders / reviews / support tickets) ----------
+// No external DB is configured for this project, so order status, reviews and support
+// tickets are persisted to flat JSON files under DATA_DIR. This is enough to make order
+// tracking, verified reviews and support-ticket status genuinely real (not device-local
+// mockups) without adding a new required dependency or service.
+const DATA_DIR = path.resolve(__dirname, process.env.DATA_DIR || 'data');
+function dataFile(name) { return path.join(DATA_DIR, name); }
+function loadStore(name) { try { return JSON.parse(fs.readFileSync(dataFile(name), 'utf8')); } catch { return {}; } }
+function saveStore(name, obj) { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(dataFile(name), JSON.stringify(obj, null, 2)); }
+let ordersDb = loadStore('orders.json');
+let reviewsDb = loadStore('reviews.json');
+let ticketsDb = loadStore('tickets.json');
+const ORDER_STATUSES = ['received', 'in_progress', 'completed', 'needs_info', 'cancelled', 'refunded'];
+const STATUS_LABEL = { received: 'Order received', in_progress: 'In progress', completed: 'Completed', needs_info: 'Needs more info from you', cancelled: 'Cancelled', refunded: 'Refunded' };
+function staffAuthed(req) { return Boolean(STAFF_TOKEN) && safeEqual(req.headers['x-staff-token'], STAFF_TOKEN); }
 if (process.env.NODE_ENV === 'production' && (!process.env.SESSION_SECRET || SECRET.length < 32)) throw new Error('SESSION_SECRET must be configured with 32+ characters in production.');
 // Catalog rows: [id, name, description, price, tag, eta, featured]
 // price:null means the item is availability/quote-based and cannot be checked out directly (INR quote flow only).
@@ -97,8 +116,10 @@ function validateOrder(body, session) {
   for (const item of body.items) { const found=valid.get(item.id); if (!found) throw new Error('Your cart contains an unavailable service.'); const qty=Number(item.quantity); if(!Number.isInteger(qty) || qty < 1 || qty > 99) throw new Error('Every service quantity must be a whole number from 1 to 99.'); if (!found[3]) throw new Error(`${found[1]} requires a quote before checkout.`); const line=found[3]*qty; subtotal+=line; items.push({id:found[0],name:found[1],quantity:qty,unitPrice:found[3],lineTotal:line}); }
   const express=Boolean(body.express); const surcharge=express?expressSurcharge:0;
   const notes=cleanIdentityText(body.notes).slice(0,400);
-  return { id:`K3-${crypto.randomUUID().slice(0,8).toUpperCase()}`, game, items, subtotal, express, surcharge, total:subtotal+surcharge, notes, customer:session.roblox, createdAt:new Date().toISOString() };
+  return { id:`K3-${crypto.randomUUID().slice(0,8).toUpperCase()}`, game, items, subtotal, express, surcharge, total:subtotal+surcharge, notes, customer:session.roblox, status:'received', statusHistory:[{status:'received',at:new Date().toISOString()}], createdAt:new Date().toISOString() };
 }
+function persistOrder(order) { ordersDb[order.id] = order; saveStore('orders.json', ordersDb); }
+function publicOrderView(order) { return { id:order.id, game:order.game, items:order.items, subtotal:order.subtotal, express:order.express, surcharge:order.surcharge, total:order.total, status:order.status, statusLabel:STATUS_LABEL[order.status]||order.status, statusHistory:order.statusHistory, createdAt:order.createdAt }; }
 async function sendWebhook(order) { const url=process.env.DISCORD_WEBHOOK_URL; if (!url) return; const lines=order.items.map(i=>`• ${i.name} ×${i.quantity} — ₹${i.lineTotal}`).join('\n'); const content=`**Order ${order.id}**\n**Customer**\nDisplay Name: ${order.customer.displayName}\nUsername: ${order.customer.username}\nRoblox user ID: ${order.customer.userId || 'Unknown'}\nEmail: ${order.customer.email || 'Not provided'}\n\n**Order**\nGame: ${order.game === 'blox' ? 'Blox Fruits' : 'Grow a Garden'}\n${lines}\n\nSubtotal: ₹${order.subtotal}\nExpress Service: ${order.express ? `Applied (+₹${order.surcharge})` : 'Not applied'}\nTotal: ₹${order.total}\n${order.notes ? `Customer notes: ${order.notes}\n` : ''}Timestamp: ${order.createdAt}`;
   const response=await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})}); if(!response.ok) throw new Error('Order delivery could not be confirmed. Please try again.');
 }
@@ -127,7 +148,53 @@ const server=http.createServer(async(req,res)=>{ const url=new URL(req.url,`http
     s.roblox={displayName:cleanIdentityText(identity.name||identity.nickname||identity.preferred_username),username:cleanIdentityText(identity.preferred_username),email:'',userId:cleanIdentityText(identity.sub)}; delete s.robloxState; delete s.robloxNonce; res.writeHead(302,{Location:'/roblox-login.html'}); return res.end();
   }
   if (req.method==='POST' && url.pathname==='/api/quotes') { const key=req.socket.remoteAddress||'unknown'; if(rateLimited(quoteAttempts,key,5,10*60*1000)) return send(res,429,{error:'Too many requests. Please wait a few minutes and try again.'}); const quote=validateQuoteRequest(await readJson(req)); await sendQuoteWebhook(quote); return send(res,201,{ok:true,id:quote.id}); }
-  if (req.method==='POST' && url.pathname==='/api/orders') { const s=user(req); if (!s?.inr) return send(res,403,{error:'Sign in to INR access before placing an INR order.'}); if (!s.roblox) return send(res,401,{error:'Authenticate with Roblox before confirming your order.'}); const order=validateOrder(await readJson(req),s); await sendWebhook(order); return send(res,201,{ok:true,order:{id:order.id,total:order.total}}); }
+  if (req.method==='POST' && url.pathname==='/api/orders') { const s=user(req); if (!s?.inr) return send(res,403,{error:'Sign in to INR access before placing an INR order.'}); if (!s.roblox) return send(res,401,{error:'Authenticate with Roblox before confirming your order.'}); const order=validateOrder(await readJson(req),s); persistOrder(order); try { await sendWebhook(order); } catch(e) { order.status='needs_info'; order.statusHistory.push({status:'needs_info',at:new Date().toISOString(),note:'Delivery to our team could not be confirmed automatically.'}); persistOrder(order); throw e; } return send(res,201,{ok:true,order:{id:order.id,total:order.total}}); }
+
+  // Customer view of their own order — used by Your account to show a real (not local-only) status.
+  if (req.method==='GET' && url.pathname==='/api/orders/mine') { const s=user(req); if (!s?.roblox) return send(res,200,{orders:[]}); const mine=Object.values(ordersDb).filter(o=>o.customer && o.customer.userId===s.roblox.userId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,25).map(publicOrderView); return send(res,200,{orders:mine}); }
+  if (req.method==='GET' && /^\/api\/orders\/[A-Za-z0-9-]+$/.test(url.pathname)) { const id=url.pathname.split('/').pop(); const order=ordersDb[id]; if(!order) return send(res,404,{error:'That order reference could not be found.'}); const s=user(req); if(!s?.roblox || s.roblox.userId!==order.customer.userId) return send(res,403,{error:'Sign in with the Roblox account this order was placed on to view it.'}); return send(res,200,{order:publicOrderView(order)}); }
+
+  // ---------- internal staff tooling — never reachable from the customer-facing UI ----------
+  if (url.pathname==='/api/staff/orders' && req.method==='GET') { if(!staffAuthed(req)) return send(res,401,{error:'Unauthorized.'}); return send(res,200,{orders:Object.values(ordersDb).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))}); }
+  if (/^\/api\/staff\/orders\/[A-Za-z0-9-]+\/status$/.test(url.pathname) && req.method==='POST') { if(!staffAuthed(req)) return send(res,401,{error:'Unauthorized.'}); const id=url.pathname.split('/')[4]; const order=ordersDb[id]; if(!order) return send(res,404,{error:'Order not found.'}); const b=await readJson(req); if(!ORDER_STATUSES.includes(b.status)) return send(res,400,{error:'Invalid status.'}); order.status=b.status; order.statusHistory.push({status:b.status,at:new Date().toISOString(),note:cleanIdentityText(b.note).slice(0,300)||undefined}); persistOrder(order); return send(res,200,{ok:true}); }
+  if (url.pathname==='/api/staff/tickets' && req.method==='GET') { if(!staffAuthed(req)) return send(res,401,{error:'Unauthorized.'}); return send(res,200,{tickets:Object.values(ticketsDb).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))}); }
+  if (/^\/api\/staff\/tickets\/[A-Za-z0-9-]+\/status$/.test(url.pathname) && req.method==='POST') { if(!staffAuthed(req)) return send(res,401,{error:'Unauthorized.'}); const id=url.pathname.split('/')[4]; const t=ticketsDb[id]; if(!t) return send(res,404,{error:'Ticket not found.'}); const b=await readJson(req); if(!['submitted','under_review','resolved'].includes(b.status)) return send(res,400,{error:'Invalid status.'}); t.status=b.status; t.resolution=cleanIdentityText(b.resolution).slice(0,600)||t.resolution; ticketsDb[id]=t; saveStore('tickets.json',ticketsDb); return send(res,200,{ok:true}); }
+
+  // ---------- reviews: customer feedback on a completed, order-verified service ----------
+  if (req.method==='GET' && url.pathname==='/api/reviews/summary') { const game=url.searchParams.get('game'); if(!catalog[game]) return send(res,404,{error:'Unknown game.'}); const summary={}; for(const row of catalog[game]){ const list=(reviewsDb[game+':'+row[0]]||[]).filter(r=>r.public); const count=list.length; const avg=count?Math.round((list.reduce((x,r)=>x+r.rating,0)/count)*10)/10:0; summary[row[0]]={avg,count}; } return send(res,200,{summary}); }
+  if (req.method==='GET' && url.pathname==='/api/reviews') { const game=url.searchParams.get('game'); const id=url.searchParams.get('id'); if(!catalog[game]||!findCatalogItem(game,id)) return send(res,404,{error:'Unknown service.'}); const list=(reviewsDb[game+':'+id]||[]).filter(r=>r.public).map(r=>({rating:r.rating,text:r.text,displayName:r.displayName,createdAt:r.createdAt,verified:true})); return send(res,200,{reviews:list}); }
+  if (req.method==='POST' && url.pathname==='/api/reviews') {
+    const key=req.socket.remoteAddress||'unknown'; if(rateLimited(reviewAttempts,key,10,10*60*1000)) return send(res,429,{error:'Too many requests. Please wait a few minutes and try again.'});
+    const s=user(req); if(!s?.roblox) return send(res,401,{error:'Connect your Roblox account to leave a review.'});
+    const b=await readJson(req); const order=ordersDb[String(b.orderId||'')];
+    if(!order) return send(res,404,{error:'We could not find an order with that reference.'});
+    if(order.customer.userId!==s.roblox.userId) return send(res,403,{error:'This order reference does not belong to the connected account.'});
+    if(order.status!=='completed') return send(res,400,{error:'Reviews can only be left once an order is marked completed.'});
+    const serviceId=String(b.serviceId||''); if(!order.items.some(i=>i.id===serviceId)) return send(res,400,{error:'That service was not part of this order.'});
+    const item=findCatalogItem(order.game,serviceId); if(!item) return send(res,404,{error:'Unknown service.'});
+    const rating=Number(b.rating); if(!Number.isInteger(rating)||rating<1||rating>5) return send(res,400,{error:'Rating must be a whole number from 1 to 5.'});
+    const text=cleanIdentityText(b.text).slice(0,500);
+    const reviewKey=order.game+':'+serviceId; reviewsDb[reviewKey]=reviewsDb[reviewKey]||[];
+    if(reviewsDb[reviewKey].some(r=>r.orderId===order.id)) return send(res,409,{error:'You have already reviewed this service for this order.'});
+    reviewsDb[reviewKey].push({orderId:order.id,rating,text,displayName:cleanIdentityText(order.customer.displayName),public:b.public!==false,createdAt:new Date().toISOString()});
+    saveStore('reviews.json',reviewsDb); return send(res,201,{ok:true});
+  }
+
+  // ---------- support / refund requests, tied to a specific order or quote reference ----------
+  if (req.method==='POST' && url.pathname==='/api/support') {
+    const key=req.socket.remoteAddress||'unknown'; if(rateLimited(supportAttempts,key,5,10*60*1000)) return send(res,429,{error:'Too many requests. Please wait a few minutes and try again.'});
+    const b=await readJson(req); const ref=String(b.reference||'').trim();
+    if(!/^(K3|Q)-[A-Z0-9]{6,10}$/.test(ref)) return send(res,400,{error:'Enter a valid order or rate-request reference, e.g. K3-XXXXXXXX or Q-XXXXXXXX.'});
+    const email=String(b.email||'').trim().slice(0,190); if(!EMAIL_RE.test(email)) return send(res,400,{error:'Enter a valid contact email.'});
+    const reason=String(b.reason||'').slice(0,60); if(!['cancellation','refund','order-issue','account-issue','other'].includes(reason)) return send(res,400,{error:'Choose a valid request reason.'});
+    const context=cleanIdentityText(b.context).slice(0,800); const desiredOutcome=cleanIdentityText(b.desiredOutcome).slice(0,300);
+    const ticket={ id:`SR-${crypto.randomUUID().slice(0,8).toUpperCase()}`, reference:ref, email, reason, context, desiredOutcome, status:'submitted', resolution:'', createdAt:new Date().toISOString() };
+    ticketsDb[ticket.id]=ticket; saveStore('tickets.json',ticketsDb);
+    const url2=process.env.DISCORD_WEBHOOK_URL; if(url2){ try{ await fetch(url2,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:`**Support request ${ticket.id}**\nReference: ${ticket.reference}\nReason: ${ticket.reason}\nContact: ${ticket.email}\n\n${ticket.context}\n${ticket.desiredOutcome?`\nDesired outcome: ${ticket.desiredOutcome}`:''}`})}); }catch{} }
+    return send(res,201,{ok:true,id:ticket.id});
+  }
+  if (req.method==='GET' && url.pathname==='/api/support/lookup') { const id=url.searchParams.get('id'); const email=String(url.searchParams.get('email')||'').trim(); const t=ticketsDb[String(id||'')]; if(!t || !safeEqual(t.email.toLowerCase(),email.toLowerCase())) return send(res,404,{error:'No matching support request found for that reference and email.'}); return send(res,200,{ticket:{id:t.id,reference:t.reference,reason:t.reason,status:t.status,resolution:t.resolution,createdAt:t.createdAt}}); }
+
   if (req.method==='GET' && staticFile(res,url.pathname)) return;
   send(res,404,{error:'Not found'});
  } catch(e) { console.error(e); send(res,500,{error:e.message==='Invalid request'?e.message:'Something went wrong. Please try again.'}); } });

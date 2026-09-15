@@ -15,8 +15,7 @@
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;min-width:320px;overflow-x:hidden;color:var(--text);background:var(--bg);font:15px Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-body.garden{--accent:var(--garden);--accent2:var(--garden2)}
-body.bloxfruits{--accent:var(--bf);--accent2:var(--bf2)}
+/* One consistent visual identity everywhere (old_index blue/cyan) — no per-game or per-category re-theming. */
 body:before{content:"";position:fixed;inset:0;z-index:-3;background:
   radial-gradient(circle at 80% 4%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 40%),
   radial-gradient(circle at 14% 62%,color-mix(in srgb,var(--accent2) 12%,transparent),transparent 45%),
@@ -486,3 +485,36 @@ footer.site-footer{border-top:1px solid var(--line);padding:31px 0;display:flex;
 .progress-step.current{color:var(--text)}
 .progress-line{flex:1;height:1px;background:var(--line-strong);margin:0 10px;min-width:20px}
 @media(max-width:600px){.progress-step span.ps-label{display:none}}
+
+/* ratings */
+.rating-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.rating-stars{display:inline-flex;gap:1px;color:var(--amber)}
+.rating-stars svg{width:13px;height:13px;fill:currentColor;stroke:none}
+.rating-stars svg.empty{color:var(--line-strong)}
+.rating-count{color:var(--muted2)}
+.review-card{border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px;background:var(--panel)}
+.review-card .rv-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:12.5px}
+.review-card .rv-top b{font-size:13.5px}
+.review-card p{font-size:13.5px;color:var(--muted)}
+.review-form{border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:16px;background:var(--panel)}
+.review-form .stars-input{display:flex;gap:6px;margin:8px 0}
+.stars-input button{border:0;background:none;padding:2px;color:var(--line-strong)}
+.stars-input button svg{width:22px;height:22px;fill:currentColor;stroke:none}
+.stars-input button.active{color:var(--amber)}
+
+/* order tracker (account) */
+.order-tracker{display:flex;align-items:center;gap:0;margin:14px 0 6px}
+.ot-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;text-align:center}
+.ot-step .ot-dot{width:20px;height:20px;border-radius:50%;border:1px solid var(--line-strong);background:var(--panel-solid)}
+.ot-step.done .ot-dot{background:linear-gradient(105deg,var(--accent),var(--accent2));border-color:transparent}
+.ot-step.current .ot-dot{border-color:var(--accent2);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent2) 25%,transparent)}
+.ot-step span{font-size:10.5px;color:var(--muted2);font-weight:700}
+.ot-step.done span,.ot-step.current span{color:var(--text)}
+.ot-line{flex:1;height:1px;background:var(--line-strong);margin-bottom:22px}
+.ot-step.cancelled .ot-dot,.ot-step.needs_info .ot-dot{background:color-mix(in srgb,var(--amber) 35%,var(--panel-solid));border-color:var(--amber)}
+
+/* support ticket form */
+.ticket-form{display:grid;gap:14px}
+.ticket-form textarea{width:100%;border:1px solid var(--line-strong);border-radius:10px;background:#080d1c;color:var(--text);padding:11px;font:inherit;resize:vertical;min-height:80px}
+.ticket-form select{width:100%;border:1px solid var(--line-strong);background:#080d1c;color:var(--text);border-radius:10px;padding:11px;font-size:13.5px}
+.ticket-status{display:flex;align-items:center;gap:10px;margin-top:8px}
