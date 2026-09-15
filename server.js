@@ -17,42 +17,44 @@ const loginAttempts = new Map();
 const quoteAttempts = new Map();
 const now = () => Date.now();
 if (process.env.NODE_ENV === 'production' && (!process.env.SESSION_SECRET || SECRET.length < 32)) throw new Error('SESSION_SECRET must be configured with 32+ characters in production.');
+// Catalog rows: [id, name, description, price, tag, eta, featured]
+// price:null means the item is availability/quote-based and cannot be checked out directly (INR quote flow only).
 const catalog = {
   blox: [
-    ['leveling', 'Leveling up', 'Level grinding tailored to your current sea and build.', 2200, 'Popular'],
-    ['race-v4', 'Race V4 training', 'One race: trials, gears and training progression.', 1200, ''],
-    ['raids', 'Raids & Fragments', 'Raid carries and fragment farming. Quantity available.', 100, 'Per 1,000 frags'],
-    ['bounty', 'Bounty / Honor farming', 'Build PvP standing and work toward title achievements.', 400, 'Per 1M'],
-    ['mirage', 'Mirage Island + Gear', 'Mirage hunt and gear acquisition for the V4 path.', 1800, ''],
-    ['ghoul', 'Ghoul Race', 'Unlock the Ghoul race.', 300, ''],
-    ['cyborg', 'Cyborg Race', 'Unlock the Cyborg race.', 520, ''],
-    ['ttk', 'True Triple Katana', 'Targeted sword collection; mastery can be scoped in consultation.', 1100, ''],
-    ['ttk-mastery', 'True Triple Katana + Mastery', 'True Triple Katana collection with mastery grind.', 1700, 'Full mastery'],
-    ['soul-guitar', 'Soul Guitar', 'Mythical Soul Guitar unlock.', 850, ''],
-    ['soul-guitar-mastery', 'Soul Guitar + Mastery', 'Soul Guitar unlock with mastery grind.', 1400, 'Full mastery'],
-    ['beli', 'Money / Beli Grind', 'Beli farming for fruit purchases and upgrades.', 100, 'Per 1M Beli'],
-    ['recovery', 'Account Credential Reset', 'Access recovery assistance for your own locked account.', 450, 'Own account only'],
-    ['sword', 'Any Sword Unlock', 'Focused farming for a specific missing sword.', 450, 'From']
-    ,['fruit-blizzard', 'Physical Blizzard fruit', 'Legendary physical fruit market item.', 400, 'Market item']
-    ,['fruit-buddha', 'Physical Buddha fruit', 'Legendary physical fruit market item.', 800, 'Market item']
-    ,['fruit-portal', 'Physical Portal fruit', 'Legendary physical fruit market item.', 800, 'Market item']
-    ,['fruit-lightning', 'Physical Lightning fruit', 'Legendary physical fruit market item.', 1500, 'Market item']
-    ,['fruit-dough', 'Physical Dough fruit', 'Mythical physical fruit market item.', 1500, 'Market item']
-    ,['fruit-gas', 'Physical Gas fruit', 'Mythical physical fruit market item.', 2000, 'Market item']
-    ,['fruit-control', 'Physical Control fruit', 'Mythical physical fruit market item.', 2800, 'Market item']
-    ,['fruit-kitsune', 'Physical Kitsune fruit', 'Mythical physical fruit market item.', 4800, 'Market item']
-    ,['fruit-dragon-east', 'Physical Dragon East fruit', 'Unstable-market mythical physical fruit.', 6500, 'Unstable market']
-    ,['fruit-dragon-west', 'Physical Dragon West fruit', 'Unstable-market mythical physical fruit.', 7000, 'Unstable market']
+    ['leveling', 'Leveling up', 'Level grinding tailored to your current sea and build.', 2200, 'Popular', '1–2 days', true],
+    ['race-v4', 'Race V4 training', 'One race: trials, gears and training progression.', 1200, '', '4–8 hrs', false],
+    ['raids', 'Raids & Fragments', 'Raid carries and fragment farming. Quantity available.', 100, 'Per 1,000 frags', '2–6 hrs', true],
+    ['bounty', 'Bounty / Honor farming', 'Build PvP standing and work toward title achievements.', 400, 'Per 1M', '3–6 hrs', false],
+    ['mirage', 'Mirage Island + Gear', 'Mirage hunt and gear acquisition for the V4 path.', 1800, '', '6–12 hrs', false],
+    ['ghoul', 'Ghoul Race', 'Unlock the Ghoul race.', 300, '', '2–4 hrs', false],
+    ['cyborg', 'Cyborg Race', 'Unlock the Cyborg race.', 520, '', '3–5 hrs', false],
+    ['ttk', 'True Triple Katana', 'Targeted sword collection; mastery can be scoped in consultation.', 1100, '', '4–10 hrs', false],
+    ['ttk-mastery', 'True Triple Katana + Mastery', 'True Triple Katana collection with mastery grind.', 1700, 'Full mastery', '1–2 days', false],
+    ['soul-guitar', 'Soul Guitar', 'Mythical Soul Guitar unlock.', 850, '', '3–6 hrs', false],
+    ['soul-guitar-mastery', 'Soul Guitar + Mastery', 'Soul Guitar unlock with mastery grind.', 1400, 'Full mastery', '8–14 hrs', false],
+    ['beli', 'Money / Beli Grind', 'Beli farming for fruit purchases and upgrades.', 100, 'Per 1M Beli', '2–4 hrs', true],
+    ['recovery', 'Account Credential Reset', 'Access recovery assistance for your own locked account.', 450, 'Own account only', '1–3 hrs', false],
+    ['sword', 'Any Sword Unlock', 'Focused farming for a specific missing sword.', 450, 'From', '2–8 hrs', false]
+    ,['fruit-blizzard', 'Physical Blizzard fruit', 'Legendary physical fruit market item.', 400, 'Market item', 'Confirmed after order', false]
+    ,['fruit-buddha', 'Physical Buddha fruit', 'Legendary physical fruit market item.', 800, 'Market item', 'Confirmed after order', false]
+    ,['fruit-portal', 'Physical Portal fruit', 'Legendary physical fruit market item.', 800, 'Market item', 'Confirmed after order', false]
+    ,['fruit-lightning', 'Physical Lightning fruit', 'Legendary physical fruit market item.', 1500, 'Market item', 'Confirmed after order', false]
+    ,['fruit-dough', 'Physical Dough fruit', 'Mythical physical fruit market item.', 1500, 'Market item', 'Confirmed after order', false]
+    ,['fruit-gas', 'Physical Gas fruit', 'Mythical physical fruit market item.', 2000, 'Market item', 'Confirmed after order', false]
+    ,['fruit-control', 'Physical Control fruit', 'Mythical physical fruit market item.', 2800, 'Market item', 'Confirmed after order', false]
+    ,['fruit-kitsune', 'Physical Kitsune fruit', 'Mythical physical fruit market item.', 4800, 'Market item', 'Confirmed after order', false]
+    ,['fruit-dragon-east', 'Physical Dragon East fruit', 'Unstable-market mythical physical fruit.', 6500, 'Unstable market', 'Confirmed after order', false]
+    ,['fruit-dragon-west', 'Physical Dragon West fruit', 'Unstable-market mythical physical fruit.', 7000, 'Unstable market', 'Confirmed after order', false]
   ],
   garden: [
-    ['ember-lily', 'Ember Lily seeds', 'High-value seed order. Availability is confirmed before fulfilment.', 180, 'Availability-based'],
-    ['sugar-apple', 'Sugar Apple seeds', 'Desirable high-tier seed bundle.', 140, 'Availability-based'],
-    ['sprinkler', 'Master Sprinkler', 'Premium growth support item; stock-dependent.', 120, ''],
-    ['godly-sprinkler', 'Godly Sprinkler', 'Top-tier sprinkler request.', 260, 'Availability-based'],
-    ['raccoon', 'Raccoon pet', 'High-demand pet order, subject to market availability.', 500, 'Market item'],
-    ['dragonfly', 'Dragonfly pet', 'High-value pet request.', 360, 'Market item'],
-    ['sheckles', 'Sheckles bundle', 'Currency service; choose a quantity in your order notes.', 90, 'Per 1M'],
-    ['event', 'Event / limited item', 'Request an event item or valuable seasonal collectible.', null, 'Price on request']
+    ['ember-lily', 'Ember Lily seeds', 'High-value seed order. Availability is confirmed before fulfilment.', 180, 'Availability-based', 'Confirmed after order', true],
+    ['sugar-apple', 'Sugar Apple seeds', 'Desirable high-tier seed bundle.', 140, 'Availability-based', 'Confirmed after order', false],
+    ['sprinkler', 'Master Sprinkler', 'Premium growth support item; stock-dependent.', 120, '', '1–2 days', false],
+    ['godly-sprinkler', 'Godly Sprinkler', 'Top-tier sprinkler request.', 260, 'Availability-based', 'Confirmed after order', false],
+    ['raccoon', 'Raccoon pet', 'High-demand pet order, subject to market availability.', 500, 'Market item', 'Confirmed after order', true],
+    ['dragonfly', 'Dragonfly pet', 'High-value pet request.', 360, 'Market item', 'Confirmed after order', false],
+    ['sheckles', 'Sheckles bundle', 'Currency service; choose a quantity in your order notes.', 90, 'Per 1M', '2–4 hrs', false],
+    ['event', 'Event / limited item', 'Request an event item or valuable seasonal collectible.', null, 'Price on request', 'Confirmed by email', false]
   ]
 };
 const expressSurcharge = 200;
@@ -85,17 +87,19 @@ function validateQuoteRequest(body) {
 async function sendQuoteWebhook(quote) { const url=process.env.DISCORD_WEBHOOK_URL; if (!url) return; const lines=quote.items.map(i=>`• ${i.name} ×${i.quantity}`).join('\n'); const content=`**Quote request ${quote.id}**\nGame: ${quote.game === 'blox' ? 'Blox Fruits' : 'Grow a Garden'}\nContact: ${quote.email}\n\n${lines}\n${quote.notes ? `\nNotes: ${quote.notes}` : ''}\nTimestamp: ${quote.createdAt}`;
   const response=await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})}); if(!response.ok) throw new Error('Your request could not be delivered. Please try again.');
 }
-function publicCatalog(game) { return (catalog[game] || []).map(([id,name,description,,tag]) => ({id,name,description,tag,price:null})); }
-function inrCatalog(game) { return (catalog[game] || []).map(([id,name,description,price,tag]) => ({id,name,description,tag,price})); }
+function publicCatalog(game) { return (catalog[game] || []).map(([id,name,description,,tag,eta,featured]) => ({id,name,description,tag,eta,featured:Boolean(featured),price:null})); }
+function inrCatalog(game) { return (catalog[game] || []).map(([id,name,description,price,tag,eta,featured]) => ({id,name,description,tag,eta,featured:Boolean(featured),price})); }
+function findCatalogItem(game, id) { const row=(catalog[game]||[]).find(r=>r[0]===id); if(!row) return null; const [rid,name,description,price,tag,eta,featured]=row; return {id:rid,name,description,tag,eta,featured:Boolean(featured),price}; }
 function validateOrder(body, session) {
   const game = body.game; if (!catalog[game]) throw new Error('Choose a valid game.');
   if (!Array.isArray(body.items) || !body.items.length) throw new Error('Add at least one service.');
   const valid = new Map(catalog[game].map(x=>[x[0],x])); let items=[]; let subtotal=0;
   for (const item of body.items) { const found=valid.get(item.id); if (!found) throw new Error('Your cart contains an unavailable service.'); const qty=Number(item.quantity); if(!Number.isInteger(qty) || qty < 1 || qty > 99) throw new Error('Every service quantity must be a whole number from 1 to 99.'); if (!found[3]) throw new Error(`${found[1]} requires a quote before checkout.`); const line=found[3]*qty; subtotal+=line; items.push({id:found[0],name:found[1],quantity:qty,unitPrice:found[3],lineTotal:line}); }
   const express=Boolean(body.express); const surcharge=express?expressSurcharge:0;
-  return { id:`K3-${crypto.randomUUID().slice(0,8).toUpperCase()}`, game, items, subtotal, express, surcharge, total:subtotal+surcharge, customer:session.roblox, createdAt:new Date().toISOString() };
+  const notes=cleanIdentityText(body.notes).slice(0,400);
+  return { id:`K3-${crypto.randomUUID().slice(0,8).toUpperCase()}`, game, items, subtotal, express, surcharge, total:subtotal+surcharge, notes, customer:session.roblox, createdAt:new Date().toISOString() };
 }
-async function sendWebhook(order) { const url=process.env.DISCORD_WEBHOOK_URL; if (!url) return; const lines=order.items.map(i=>`• ${i.name} ×${i.quantity} — ₹${i.lineTotal}`).join('\n'); const content=`**Order ${order.id}**\n**Customer**\nDisplay Name: ${order.customer.displayName}\nUsername: ${order.customer.username}\nEmail: ${order.customer.email || 'Not provided'}\n\n**Order**\nGame: ${order.game === 'blox' ? 'Blox Fruits' : 'Grow a Garden'}\n${lines}\n\nSubtotal: ₹${order.subtotal}\nExpress Service: ${order.express ? `Applied (+₹${order.surcharge})` : 'Not applied'}\nTotal: ₹${order.total}\nTimestamp: ${order.createdAt}`;
+async function sendWebhook(order) { const url=process.env.DISCORD_WEBHOOK_URL; if (!url) return; const lines=order.items.map(i=>`• ${i.name} ×${i.quantity} — ₹${i.lineTotal}`).join('\n'); const content=`**Order ${order.id}**\n**Customer**\nDisplay Name: ${order.customer.displayName}\nUsername: ${order.customer.username}\nRoblox user ID: ${order.customer.userId || 'Unknown'}\nEmail: ${order.customer.email || 'Not provided'}\n\n**Order**\nGame: ${order.game === 'blox' ? 'Blox Fruits' : 'Grow a Garden'}\n${lines}\n\nSubtotal: ₹${order.subtotal}\nExpress Service: ${order.express ? `Applied (+₹${order.surcharge})` : 'Not applied'}\nTotal: ₹${order.total}\n${order.notes ? `Customer notes: ${order.notes}\n` : ''}Timestamp: ${order.createdAt}`;
   const response=await fetch(url, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content})}); if(!response.ok) throw new Error('Order delivery could not be confirmed. Please try again.');
 }
 function staticFile(res, pathname) { let file=pathname==='/'?'/index.html':pathname; const root=path.resolve(__dirname,'public'); const candidate=path.resolve(root,'.'+file); const allowed=(candidate===root || candidate.startsWith(root+path.sep)) ? candidate : null; if (!allowed || !fs.existsSync(allowed) || fs.statSync(allowed).isDirectory()) return false; const ext=path.extname(allowed); const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml'}; send(res,200,fs.readFileSync(allowed),types[ext]||'application/octet-stream'); return true; }
@@ -105,6 +109,8 @@ const server=http.createServer(async(req,res)=>{ const url=new URL(req.url,`http
   if (req.method==='POST' && url.pathname==='/api/inr/login') { if(!loginAllowed(req)) return send(res,429,{error:'Too many failed attempts. Please wait 15 minutes.'}); const b=await readJson(req); if (!process.env.INR_USERNAME || !process.env.INR_PASSWORD) return send(res,503,{error:'INR access is not configured yet.'}); if (!safeEqual(b.username,process.env.INR_USERNAME)||!safeEqual(b.password,process.env.INR_PASSWORD)){recordLoginFailure(req);return send(res,401,{error:'Those INR access details are not recognised.'});} loginAttempts.delete(req.socket.remoteAddress||'unknown'); makeSession(res,{inr:true}); return send(res,200,{ok:true}); }
   if (req.method==='POST' && url.pathname==='/api/logout') { res.setHeader('Set-Cookie','sid=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return send(res,200,{ok:true}); }
   if (req.method==='GET' && url.pathname==='/api/catalog') { const game=url.searchParams.get('game'); const market=url.searchParams.get('market'); if (!catalog[game]) return send(res,404,{error:'Unknown game.'}); const s=user(req); if (market==='inr' && !s?.inr) return send(res,403,{error:'INR access is required.'}); return send(res,200,{items:market==='inr'?inrCatalog(game):publicCatalog(game), expressSurcharge:market==='inr'?expressSurcharge:null}); }
+  if (req.method==='GET' && url.pathname==='/api/catalog/item') { const game=url.searchParams.get('game'); const id=url.searchParams.get('id'); if (!catalog[game]) return send(res,404,{error:'Unknown game.'}); const s=user(req); const isInr=Boolean(s?.inr); const item=findCatalogItem(game,id); if(!item) return send(res,404,{error:'That service could not be found.'}); if(!isInr) item.price=null; return send(res,200,{item,expressSurcharge:isInr?expressSurcharge:null}); }
+  if (req.method==='POST' && url.pathname==='/api/roblox/disconnect') { const s=user(req); if (s) delete s.roblox; return send(res,200,{ok:true}); }
   if (req.method==='GET' && url.pathname==='/api/roblox/start') {
     if (!robloxConfigured()) return send(res,503,{error:'Roblox authentication has not been configured yet.'});
     let s=user(req); if (!s) s=makeSession(res,{}); s.robloxState=crypto.randomBytes(24).toString('hex'); s.robloxNonce=crypto.randomBytes(24).toString('hex');
