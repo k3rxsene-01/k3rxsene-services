@@ -162,7 +162,7 @@ function header(active=''){
   const ctaHtml=cta?`<a class="btn blue" href="${cta.href}">${cta.label}</a>`:'';
   return `<a class="skip-link" href="#main">Skip to content</a><header><nav class="wrap" aria-label="Primary">
 <a class="brand" href="/"><span class="mark"><span>K</span></span>k3rxsene's Services</a>
-<div class="nav-search" role="search"><label class="sr-only" for="siteSearch" style="position:absolute;left:-9999px">/label>${ico('search')}<input id="siteSearch" type="search" placeholder="Search For Services" autocomplete="off"><button class="clear-search" id="clearSearch" aria-label="Clear search">×</button><div class="search-panel" id="searchPanel" role="listbox"></div></div>
+<div class="nav-search" role="search"><label class="sr-only" for="siteSearch" style="position:absolute;left:-9999px"></label>${ico('search')}<input id="siteSearch" type="search" placeholder="Search For Services" autocomplete="off"><button class="clear-search" id="clearSearch" aria-label="Clear search">×</button><div class="search-panel" id="searchPanel" role="listbox"></div></div>
 <div class="navlinks">
 <a class="${active==='games'?'active':''}" href="/#games">Games</a><a href="/#status">Stats</a><a href="/support.html">Support</a>
 <div class="nav-iconlinks">
@@ -173,7 +173,7 @@ ${ctaHtml}
 <button class="menu icon-btn" id="menu" aria-label="Open menu" aria-expanded="false"><svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="x-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
 </div></nav></header>
 <div class="mobile-menu" id="mobileMenu">
-<div class="mobile-search"><label class="sr-only" for="siteSearchMobile" style="position:absolute;left:-9999px">/label>${ico('search')}<input id="siteSearchMobile" type="search" placeholder="Search For Services" autocomplete="off"><div class="search-panel" id="searchPanelMobile" role="listbox"></div></div>
+<div class="mobile-search"><label class="sr-only" for="siteSearchMobile" style="position:absolute;left:-9999px"></label>${ico('search')}<input id="siteSearchMobile" type="search" placeholder="Search For Services" autocomplete="off"><div class="search-panel" id="searchPanelMobile" role="listbox"></div></div>
 <a href="/#games">Games</a><a href="/#status">Stats</a><a href="/support.html">Support</a><a href="/account.html?tab=wishlist">Wishlist (${wc})</a><a href="/account.html">Your account</a>${cta?`<a class="btn blue" href="${cta.href}">${cta.label}</a>`:''}</div>`;
 }
 function footer(){return `<footer class="site-footer wrap"><span class="footer-brand"><span class="mark" style="width:26px;height:26px"><span style="font-size:11px">K</span></span>k3rxsene's Services</span><span>© 2026 k3rxsene's Services. Independent Roblox service provider — not affiliated with or endorsed by Roblox Corporation.</span><span><a href="/support.html">Support &amp; policies</a></span></footer>`}
